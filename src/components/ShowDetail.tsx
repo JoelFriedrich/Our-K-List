@@ -18,7 +18,7 @@ export default function ShowDetail({ show, onClose, onUpdate, onActorClick }: Sh
   const [password, setPassword] = useState('');
   const [friedrichRating, setFriedrichRating] = useState(show.friedrich_rating);
   const [rating, setRating] = useState(show.rating);
-  const [comment, setComment] = useState(show.comment || '');
+  const [comments, setComments] = useState(show.comments || '');
   const [isSaving, setIsSaving] = useState(false);
   const [actors, setActors] = useState<Actor[]>([]);
   const [isLoadingActors, setIsLoadingActors] = useState(true);
@@ -63,17 +63,21 @@ export default function ShowDetail({ show, onClose, onUpdate, onActorClick }: Sh
         .update({
           friedrich_rating: friedrichRating,
           rating: rating,
-          comment: comment
+          comments: comments
         })
         .eq('id', show.id);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase Update Error:', error);
+        throw error;
+      }
 
       toast.success('STATS UPDATED');
       setIsEditing(false);
       onUpdate();
-    } catch (error) {
-      toast.error('SAVE FAILED');
+    } catch (error: any) {
+      console.error('Supabase Update Error:', error);
+      toast.error(`SAVE FAILED: ${error.message || 'UNKNOWN ERROR'}`);
     } finally {
       setIsSaving(false);
     }
@@ -123,14 +127,14 @@ export default function ShowDetail({ show, onClose, onUpdate, onActorClick }: Sh
               <h3 className="font-game text-[10px] text-zinc-500 border-b-2 border-zinc-900 pb-2 uppercase">COMMENTS</h3>
               {isEditing ? (
                 <textarea
-                  value={comment}
-                  onChange={(e) => setComment(e.target.value)}
+                  value={comments}
+                  onChange={(e) => setComments(e.target.value)}
                   placeholder="ADD YOUR THOUGHTS..."
                   className="w-full bg-zinc-900 border-2 border-zinc-800 p-4 font-mono text-zinc-300 min-h-[100px] focus:outline-none focus:border-netflix-red transition-colors"
                 />
               ) : (
                 <div className="bg-zinc-900/50 p-4 border-l-4 border-netflix-red font-mono text-zinc-400 italic">
-                  {show.comment || "NO COMMENTS YET..."}
+                  {show.comments || "NO COMMENTS YET..."}
                 </div>
               )}
             </div>

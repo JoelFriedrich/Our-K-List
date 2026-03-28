@@ -19,7 +19,7 @@ export default function AddShowModal({ isOpen, onClose, onSuccess }: AddShowModa
   const [selectedShow, setSelectedShow] = useState<TMDBShow | null>(null);
   const [friedrichRating, setFriedrichRating] = useState(5);
   const [rating, setRating] = useState(5);
-  const [comment, setComment] = useState('');
+  const [comments, setComments] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [password, setPassword] = useState('');
   const [isUnlocked, setIsUnlocked] = useState(false);
@@ -85,7 +85,7 @@ export default function AddShowModal({ isOpen, onClose, onSuccess }: AddShowModa
           summary: selectedShow.overview,
           friedrich_rating: friedrichRating,
           rating: rating,
-          comment: comment,
+          comments: comments,
           seasons: selectedShow.number_of_seasons || 1,
           episodes: selectedShow.number_of_episodes || 1,
           actors: actorNames,
@@ -123,9 +123,9 @@ export default function AddShowModal({ isOpen, onClose, onSuccess }: AddShowModa
       toast.success('SHOW ADDED');
       onSuccess();
       onClose();
-    } catch (error) {
-      console.error(error);
-      toast.error('SAVE FAILED');
+    } catch (error: any) {
+      console.error('Supabase Insert Error:', error);
+      toast.error(`SAVE FAILED: ${error.message || 'UNKNOWN ERROR'}`);
     } finally {
       setIsSaving(false);
     }
@@ -265,8 +265,8 @@ export default function AddShowModal({ isOpen, onClose, onSuccess }: AddShowModa
                 <div className="space-y-4">
                   <label className="block font-game text-[8px] text-zinc-500 uppercase">COMMENTS</label>
                   <textarea
-                    value={comment}
-                    onChange={(e) => setComment(e.target.value)}
+                    value={comments}
+                    onChange={(e) => setComments(e.target.value)}
                     placeholder="ADD YOUR THOUGHTS..."
                     className="w-full bg-zinc-900 border-2 border-zinc-800 p-4 font-mono text-zinc-300 min-h-[100px] focus:outline-none focus:border-netflix-red transition-colors"
                   />

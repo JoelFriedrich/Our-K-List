@@ -10,7 +10,7 @@ export interface Show {
   episodes: number;
   actors: string[];
   characters: string[];
-  comment?: string;
+  comments?: string;
   created_at?: string;
 }
 

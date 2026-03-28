@@ -4,15 +4,13 @@ import { Show } from '../types';
 interface ShowListProps {
   shows: Show[];
   onShowClick: (show: Show) => void;
+  sortBy: 'friedrich_rating' | 'rating';
 }
 
-export default function ShowList({ shows, onShowClick }: ShowListProps) {
-  // Sort by Friedrich's rating descending
-  const sortedShows = [...shows].sort((a, b) => b.friedrich_rating - a.friedrich_rating);
-
+export default function ShowList({ shows, onShowClick, sortBy }: ShowListProps) {
   return (
     <div className="w-full max-w-5xl mx-auto space-y-4">
-      {sortedShows.map((show, index) => (
+      {shows.map((show, index) => (
         <div
           key={show.id}
           onClick={() => onShowClick(show)}
@@ -40,10 +38,14 @@ export default function ShowList({ shows, onShowClick }: ShowListProps) {
             <h3 className="font-game text-sm mb-2 truncate group-hover:text-netflix-red transition-colors">{show.title}</h3>
             <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm font-mono text-zinc-500">
               <span className="flex items-center gap-1">
-                <span className="text-netflix-red font-bold">RATING:</span> {show.friedrich_rating}
+                <span className={`${sortBy === 'friedrich_rating' ? 'text-netflix-red' : 'text-yellow-500'} font-bold`}>
+                  {sortBy === 'friedrich_rating' ? "JOEL'S RATING:" : "LINDSAY'S RATING:"}
+                </span> 
+                {sortBy === 'friedrich_rating' ? show.friedrich_rating : show.rating}
               </span>
               <span className="flex items-center gap-1">
-                <Star size={14} className="text-yellow-500 fill-yellow-500" /> {show.rating}
+                <Star size={14} className={`${sortBy === 'friedrich_rating' ? 'text-yellow-500 fill-yellow-500' : 'text-netflix-red fill-netflix-red'}`} /> 
+                {sortBy === 'friedrich_rating' ? show.rating : show.friedrich_rating}
               </span>
               <span className="flex items-center gap-1">
                 <Tv size={14} /> {show.seasons}S

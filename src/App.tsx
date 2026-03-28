@@ -44,6 +44,9 @@ export default function App() {
       }
       
       console.log('Fetched shows successfully:', data);
+      if (data && data.length > 0) {
+        console.log('Table columns:', Object.keys(data[0]));
+      }
       setShows(data || []);
     } catch (error) {
       console.error('Error fetching shows:', error);
@@ -211,6 +214,7 @@ export default function App() {
                     key={show.id}
                     show={show}
                     onClick={() => handleShowClick(show)}
+                    sortBy={sortBy}
                   />
                 ))}
               </motion.div>
@@ -224,6 +228,7 @@ export default function App() {
                 <ShowList
                   shows={shows}
                   onShowClick={handleShowClick}
+                  sortBy={sortBy}
                 />
               </motion.div>
             )}
