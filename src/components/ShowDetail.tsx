@@ -18,6 +18,7 @@ export default function ShowDetail({ show, onClose, onUpdate, onActorClick }: Sh
   const [password, setPassword] = useState('');
   const [friedrichRating, setFriedrichRating] = useState(show.friedrich_rating);
   const [rating, setRating] = useState(show.rating);
+  const [comment, setComment] = useState(show.comment || '');
   const [isSaving, setIsSaving] = useState(false);
   const [actors, setActors] = useState<Actor[]>([]);
   const [isLoadingActors, setIsLoadingActors] = useState(true);
@@ -61,7 +62,8 @@ export default function ShowDetail({ show, onClose, onUpdate, onActorClick }: Sh
         .from('Show_data')
         .update({
           friedrich_rating: friedrichRating,
-          rating: rating
+          rating: rating,
+          comment: comment
         })
         .eq('id', show.id);
 
@@ -78,32 +80,32 @@ export default function ShowDetail({ show, onClose, onUpdate, onActorClick }: Sh
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-sm p-4 overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-sm p-0 md:p-4">
       <motion.div
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="bg-card-bg w-full max-w-4xl border-4 border-zinc-900 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] overflow-hidden relative"
+        className="bg-card-bg w-full h-full md:h-[85vh] md:max-w-4xl border-0 md:border-4 border-zinc-900 shadow-none md:shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] overflow-hidden relative flex flex-col md:flex-row"
       >
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 z-10 bg-netflix-red text-white p-2 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-y-0.5 transition-all"
+          className="fixed md:absolute top-6 right-6 md:top-4 md:right-4 z-[70] bg-netflix-red text-white p-3 md:p-2 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] md:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-y-0.5 transition-all active:scale-95"
         >
-          <X size={20} />
+          <X size={24} className="md:w-5 md:h-5" />
         </button>
 
-        <div className="flex flex-col md:flex-row">
+        <div className="flex flex-col md:flex-row w-full h-full">
           {/* Poster Section */}
-          <div className="w-full md:w-1/3 border-b-4 md:border-b-0 md:border-r-4 border-zinc-900">
+          <div className="w-full md:w-1/3 shrink-0 border-b-4 md:border-b-0 md:border-r-4 border-zinc-900 bg-zinc-900">
             <img
               src={show.poster_url}
               alt={show.title}
-              className="w-full h-full object-cover transition-all"
+              className="w-full h-64 md:h-full object-cover transition-all"
               referrerPolicy="no-referrer"
             />
           </div>
 
           {/* Content Section */}
-          <div className="flex-1 p-8 space-y-8">
+          <div className="flex-1 p-6 md:p-8 space-y-8 overflow-y-auto">
             <div>
               <h2 className="font-game text-2xl text-white mb-4 leading-tight">{show.title}</h2>
               <div className="flex items-center gap-6 font-mono text-zinc-400">
@@ -116,18 +118,35 @@ export default function ShowDetail({ show, onClose, onUpdate, onActorClick }: Sh
               <span className="text-netflix-red mr-2">{'>'}</span>{show.summary}
             </div>
 
+            {/* Comment Section */}
+            <div className="space-y-4">
+              <h3 className="font-game text-[10px] text-zinc-500 border-b-2 border-zinc-900 pb-2 uppercase">COMMENTS</h3>
+              {isEditing ? (
+                <textarea
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                  placeholder="ADD YOUR THOUGHTS..."
+                  className="w-full bg-zinc-900 border-2 border-zinc-800 p-4 font-mono text-zinc-300 min-h-[100px] focus:outline-none focus:border-netflix-red transition-colors"
+                />
+              ) : (
+                <div className="bg-zinc-900/50 p-4 border-l-4 border-netflix-red font-mono text-zinc-400 italic">
+                  {show.comment || "NO COMMENTS YET..."}
+                </div>
+              )}
+            </div>
+
             {/* Ratings Section */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 relative">
               <div className="bg-zinc-900 p-6 border-4 border-zinc-950 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] text-center">
-                <div className="font-game text-[8px] text-zinc-500 mb-4">FRIEDRICH RATING</div>
+                <div className="font-game text-[8px] text-zinc-500 mb-4 uppercase">JOEL'S RATING</div>
                 {isEditing ? (
                   <input
                     type="number"
                     min="1"
                     max="10"
-                    step="0.5"
+                    step="0.1"
                     value={friedrichRating}
-                    onChange={(e) => setFriedrichRating(parseFloat(e.target.value))}
+                    onChange={(e) => setFriedrichRating(parseFloat(e.target.value) || 0)}
                     className="bg-black border-2 border-netflix-red text-white font-game text-sm w-24 text-center p-2"
                   />
                 ) : (
@@ -136,15 +155,15 @@ export default function ShowDetail({ show, onClose, onUpdate, onActorClick }: Sh
               </div>
 
               <div className="bg-zinc-900 p-6 border-4 border-zinc-950 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] text-center">
-                <div className="font-game text-[8px] text-zinc-500 mb-4">YOUR RATING</div>
+                <div className="font-game text-[8px] text-zinc-500 mb-4 uppercase">LINDSAY'S RATING</div>
                 {isEditing ? (
                   <input
                     type="number"
                     min="1"
                     max="10"
-                    step="0.5"
+                    step="0.1"
                     value={rating}
-                    onChange={(e) => setRating(parseFloat(e.target.value))}
+                    onChange={(e) => setRating(parseFloat(e.target.value) || 0)}
                     className="bg-black border-2 border-netflix-red text-white font-game text-sm w-24 text-center p-2"
                   />
                 ) : (

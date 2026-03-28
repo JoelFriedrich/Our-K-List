@@ -16,6 +16,7 @@ export default function App() {
   const [shows, setShows] = useState<Show[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
+  const [sortBy, setSortBy] = useState<'friedrich_rating' | 'rating'>('friedrich_rating');
   const [selectedShow, setSelectedShow] = useState<Show | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedActorName, setSelectedActorName] = useState<string | null>(null);
@@ -33,7 +34,7 @@ export default function App() {
       const { data, error } = await supabase
         .from('Show_data')
         .select('*')
-        .order('friedrich_rating', { ascending: false });
+        .order(sortBy, { ascending: false });
       
       if (error) {
         console.error('Supabase Error:', error.message);
@@ -53,7 +54,7 @@ export default function App() {
 
   useEffect(() => {
     fetchShows();
-  }, []);
+  }, [sortBy]);
 
   const handleShowClick = (show: Show) => {
     setSelectedShow(show);
@@ -157,6 +158,28 @@ export default function App() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
+        {/* Sort Toggle */}
+        <div className="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4">
+          <div className="flex bg-zinc-900 p-1 border-2 border-zinc-800 w-full sm:w-auto">
+            <button
+              onClick={() => setSortBy('friedrich_rating')}
+              className={`flex-1 sm:flex-none px-4 py-2 font-game text-[8px] transition-all ${sortBy === 'friedrich_rating' ? 'bg-netflix-red text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+            >
+              JOEL'S TOP
+            </button>
+            <button
+              onClick={() => setSortBy('rating')}
+              className={`flex-1 sm:flex-none px-4 py-2 font-game text-[8px] transition-all ${sortBy === 'rating' ? 'bg-netflix-red text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+            >
+              LINDSAY'S TOP
+            </button>
+          </div>
+          
+          <div className="font-mono text-zinc-500 text-sm">
+            SORTING BY: <span className="text-netflix-red">{sortBy === 'friedrich_rating' ? "JOEL'S RATING" : "LINDSAY'S RATING"}</span>
+          </div>
+        </div>
+
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-20 gap-4">
             <Loader2 className="animate-spin text-netflix-red" size={48} />

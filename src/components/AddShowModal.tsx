@@ -19,6 +19,7 @@ export default function AddShowModal({ isOpen, onClose, onSuccess }: AddShowModa
   const [selectedShow, setSelectedShow] = useState<TMDBShow | null>(null);
   const [friedrichRating, setFriedrichRating] = useState(5);
   const [rating, setRating] = useState(5);
+  const [comment, setComment] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [password, setPassword] = useState('');
   const [isUnlocked, setIsUnlocked] = useState(false);
@@ -84,6 +85,7 @@ export default function AddShowModal({ isOpen, onClose, onSuccess }: AddShowModa
           summary: selectedShow.overview,
           friedrich_rating: friedrichRating,
           rating: rating,
+          comment: comment,
           seasons: selectedShow.number_of_seasons || 1,
           episodes: selectedShow.number_of_episodes || 1,
           actors: actorNames,
@@ -231,35 +233,43 @@ export default function AddShowModal({ isOpen, onClose, onSuccess }: AddShowModa
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
                   <div className="space-y-4">
-                    <label className="block font-game text-[8px] text-zinc-500">FRIEDRICH RATING</label>
+                    <label className="block font-game text-[8px] text-zinc-500 uppercase">JOEL'S RATING</label>
                     <div className="flex items-center gap-4">
                       <input
-                        type="range"
+                        type="number"
                         min="1"
                         max="10"
-                        step="0.5"
+                        step="0.1"
                         value={friedrichRating}
-                        onChange={(e) => setFriedrichRating(parseFloat(e.target.value))}
-                        className="flex-1 accent-netflix-red"
+                        onChange={(e) => setFriedrichRating(parseFloat(e.target.value) || 0)}
+                        className="flex-1 bg-zinc-900 border-2 border-zinc-800 p-2 font-mono text-white focus:outline-none focus:border-netflix-red"
                       />
-                      <span className="font-game text-sm text-netflix-red w-8">{friedrichRating}</span>
                     </div>
                   </div>
                   <div className="space-y-4">
-                    <label className="block font-game text-[8px] text-zinc-500">YOUR RATING</label>
+                    <label className="block font-game text-[8px] text-zinc-500 uppercase">LINDSAY'S RATING</label>
                     <div className="flex items-center gap-4">
                       <input
-                        type="range"
+                        type="number"
                         min="1"
                         max="10"
-                        step="0.5"
+                        step="0.1"
                         value={rating}
-                        onChange={(e) => setRating(parseFloat(e.target.value))}
-                        className="flex-1 accent-netflix-red"
+                        onChange={(e) => setRating(parseFloat(e.target.value) || 0)}
+                        className="flex-1 bg-zinc-900 border-2 border-zinc-800 p-2 font-mono text-white focus:outline-none focus:border-netflix-red"
                       />
-                      <span className="font-game text-sm text-yellow-500 w-8">{rating}</span>
                     </div>
                   </div>
+                </div>
+
+                <div className="space-y-4">
+                  <label className="block font-game text-[8px] text-zinc-500 uppercase">COMMENTS</label>
+                  <textarea
+                    value={comment}
+                    onChange={(e) => setComment(e.target.value)}
+                    placeholder="ADD YOUR THOUGHTS..."
+                    className="w-full bg-zinc-900 border-2 border-zinc-800 p-4 font-mono text-zinc-300 min-h-[100px] focus:outline-none focus:border-netflix-red transition-colors"
+                  />
                 </div>
 
                 <button
