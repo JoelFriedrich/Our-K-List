@@ -10,9 +10,10 @@ interface NavbarProps {
   onProfileClick: () => void;
   currentView: 'my-list' | 'friends';
   refreshTrigger: number;
+  pendingRequestsCount: number;
 }
 
-export default function Navbar({ onAddClick, onViewChange, onProfileClick, currentView, refreshTrigger }: NavbarProps) {
+export default function Navbar({ onAddClick, onViewChange, onProfileClick, currentView, refreshTrigger, pendingRequestsCount }: NavbarProps) {
   const [profile, setProfile] = useState<Profile | null>(null);
 
   const fetchProfile = async () => {
@@ -58,9 +59,14 @@ export default function Navbar({ onAddClick, onViewChange, onProfileClick, curre
               </button>
               <button
                 onClick={() => onViewChange('friends')}
-                className={`text-sm font-semibold transition-colors ${currentView === 'friends' ? 'text-white' : 'text-zinc-400 hover:text-zinc-200'}`}
+                className={`text-sm font-semibold transition-colors relative ${currentView === 'friends' ? 'text-white' : 'text-zinc-400 hover:text-zinc-200'}`}
               >
                 Friends
+                {pendingRequestsCount > 0 && (
+                  <span className="absolute -top-1 -right-3 bg-netflix-red text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center border border-black shadow-lg">
+                    {pendingRequestsCount}
+                  </span>
+                )}
               </button>
             </div>
           </div>
@@ -120,10 +126,15 @@ export default function Navbar({ onAddClick, onViewChange, onProfileClick, curre
         </button>
         <button
           onClick={() => onViewChange('friends')}
-          className={`flex flex-col items-center gap-1 text-[10px] uppercase tracking-widest font-bold ${currentView === 'friends' ? 'text-white' : 'text-zinc-500'}`}
+          className={`flex flex-col items-center gap-1 text-[10px] uppercase tracking-widest font-bold relative ${currentView === 'friends' ? 'text-white' : 'text-zinc-500'}`}
         >
           <Users size={18} />
           Friends
+          {pendingRequestsCount > 0 && (
+            <span className="absolute top-0 right-0 bg-netflix-red text-white text-[8px] w-3 h-3 rounded-full flex items-center justify-center border border-black">
+              {pendingRequestsCount}
+            </span>
+          )}
         </button>
       </div>
     </nav>

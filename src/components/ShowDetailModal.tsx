@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { UserShow, Actor, ShowStatus, Profile } from '../types';
+import { UserShow, Actor, ShowStatus } from '../types';
 import { X, Star, Heart, Loader2, Edit2, Check, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'react-hot-toast';
@@ -24,22 +24,10 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
   const [isLiked, setIsLiked] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
-  const [profile, setProfile] = useState<Profile | null>(null);
-
   useEffect(() => {
     const init = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       setCurrentUserId(user?.id || null);
-
-      if (userShow.user_id) {
-        // Fetch profile of the show owner
-        const { data: profileData } = await supabase
-          .from('Profiles')
-          .select('*')
-          .eq('id', userShow.user_id)
-          .single();
-        if (profileData) setProfile(profileData);
-      }
 
       // Fetch actors
       if (userShow.show?.actors) {
@@ -236,7 +224,7 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
               <div className="bg-zinc-900/80 p-6 rounded-xl border border-zinc-800 shadow-xl">
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="font-bold text-lg">
-                    {profile?.display_name ? `${profile.display_name}'s Review` : 'Review'}
+                    {isFriendView ? 'Friend\'s Review' : 'My Review'}
                   </h3>
                   {!isFriendView && (
                     <div className="flex items-center gap-2">
@@ -320,30 +308,32 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
                     )}
                   </div>
 
-                  <div className="pt-4 border-t border-zinc-800 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={handleToggleLike}
-                        disabled={!currentUserId || userShow.user_id === currentUserId}
-                        className={`transition-all ${
-                          isLiked ? 'text-netflix-red' : 'text-zinc-600 hover:text-zinc-400'
-                        } disabled:opacity-30`}
-                      >
-                        <Heart size={20} className={isLiked ? 'fill-netflix-red' : ''} />
-                      </button>
-                      <span className="text-sm font-bold text-zinc-400">{likesCount}</span>
-                    </div>
+                  {(comments || likesCount > 0) && (
+                    <div className="pt-4 border-t border-zinc-800 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={handleToggleLike}
+                          disabled={!currentUserId || userShow.user_id === currentUserId}
+                          className={`transition-all ${
+                            isLiked ? 'text-netflix-red' : 'text-zinc-600 hover:text-zinc-400'
+                          } disabled:opacity-30`}
+                        >
+                          <Heart size={20} className={isLiked ? 'fill-netflix-red' : ''} />
+                        </button>
+                        <span className="text-sm font-bold text-zinc-400">{likesCount}</span>
+                      </div>
 
-                    {!isFriendView && (
-                      <button
-                        onClick={handleDelete}
-                        className="text-zinc-700 hover:text-red-500 transition-colors"
-                        title="Delete from list"
-                      >
-                        <Trash2 size={18} />
-                      </button>
-                    )}
-                  </div>
+                      {!isFriendView && (
+                        <button
+                          onClick={handleDelete}
+                          className="text-zinc-700 hover:text-red-500 transition-colors"
+                          title="Delete from list"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

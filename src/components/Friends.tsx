@@ -8,9 +8,10 @@ import ShowCard from './ShowCard';
 
 interface FriendsProps {
   onShowClick: (userShow: UserShow) => void;
+  onFriendshipUpdate?: () => void;
 }
 
-export default function Friends({ onShowClick }: FriendsProps) {
+export default function Friends({ onShowClick, onFriendshipUpdate }: FriendsProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Profile[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -19,16 +20,24 @@ export default function Friends({ onShowClick }: FriendsProps) {
   const [selectedFriend, setSelectedFriend] = useState<Profile | null>(null);
   const [friendShows, setFriendShows] = useState<UserShow[]>([]);
   const [isFetchingFriendShows, setIsFetchingFriendShows] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [isSendingRequest, setIsSendingRequest] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchFriendships();
+    const init = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setCurrentUserId(user.id);
+        fetchFriendships(user.id);
+      } else {
+        setIsLoading(false);
+      }
+    };
+    init();
   }, []);
 
-  const fetchFriendships = async () => {
+  const fetchFriendships = async (uid: string) => {
     setIsLoading(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
     const { data, error } = await supabase
       .from('Friendships')
       .select(`
@@ -36,7 +45,8 @@ export default function Friends({ onShowClick }: FriendsProps) {
         friend_profile:Profiles!Friendships_friend_id_fkey(*),
         user_profile:Profiles!Friendships_user_id_fkey(*)
       `)
-      .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`);
+      .or(`user_id.eq.${uid},friend_id.eq.${uid}`)
+      .neq('status', 'declined');
 
     if (error) {
       console.error('Error fetching friendships:', error);
@@ -48,16 +58,19 @@ export default function Friends({ onShowClick }: FriendsProps) {
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!searchQuery.trim()) return;
+    if (!searchQuery.trim() || !currentUserId) return;
 
     setIsSearching(true);
-    const { data: { user } } = await supabase.auth.getUser();
     
+    // Get all current friendship IDs to exclude them from search
+    const existingFriendIds = friendships.flatMap(f => [f.user_id, f.friend_id]);
+    const excludeIds = Array.from(new Set([...existingFriendIds, currentUserId]));
+
     const { data, error } = await supabase
       .from('Profiles')
       .select('*')
       .ilike('display_name', `%${searchQuery}%`)
-      .neq('id', user?.id)
+      .not('id', 'in', `(${excludeIds.join(',')})`)
       .limit(10);
 
     if (error) {
@@ -69,13 +82,13 @@ export default function Friends({ onShowClick }: FriendsProps) {
   };
 
   const sendFriendRequest = async (friendId: string) => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!currentUserId || isSendingRequest) return;
 
+    setIsSendingRequest(friendId);
     const { error } = await supabase
       .from('Friendships')
       .insert({
-        user_id: user.id,
+        user_id: currentUserId,
         friend_id: friendId,
         status: 'pending'
       });
@@ -84,11 +97,15 @@ export default function Friends({ onShowClick }: FriendsProps) {
       toast.error('Request already sent or failed');
     } else {
       toast.success('Friend request sent!');
-      fetchFriendships();
+      fetchFriendships(currentUserId);
+      onFriendshipUpdate?.();
     }
+    setIsSendingRequest(null);
   };
 
   const updateFriendship = async (friendshipId: string, status: 'accepted' | 'declined') => {
+    if (!currentUserId) return;
+
     const { error } = await supabase
       .from('Friendships')
       .update({ status })
@@ -98,7 +115,8 @@ export default function Friends({ onShowClick }: FriendsProps) {
       toast.error('Failed to update request');
     } else {
       toast.success(`Request ${status}`);
-      fetchFriendships();
+      fetchFriendships(currentUserId);
+      onFriendshipUpdate?.();
     }
   };
 
@@ -124,17 +142,22 @@ export default function Friends({ onShowClick }: FriendsProps) {
     setIsFetchingFriendShows(false);
   };
 
-  const acceptedFriends = friendships.filter(f => f.status === 'accepted').map(f => {
-    const { data: { user } } = supabase.auth.getSession().then(({ data }) => data) as any; // This is a bit hacky for sync access
-    // Better way: compare with current user ID
-    return f.user_id === selectedFriend?.id ? f.user_profile : f.friend_profile;
-  });
+  const cancelRequest = async (friendshipId: string) => {
+    if (!currentUserId) return;
 
-  // Re-calculate accepted friends properly
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => setCurrentUserId(user?.id || null));
-  }, []);
+    const { error } = await supabase
+      .from('Friendships')
+      .delete()
+      .eq('id', friendshipId);
+
+    if (error) {
+      toast.error('Failed to cancel request');
+    } else {
+      toast.success('Request cancelled');
+      fetchFriendships(currentUserId);
+      onFriendshipUpdate?.();
+    }
+  };
 
   const getFriendProfile = (f: Friendship) => {
     return f.user_id === currentUserId ? f.friend_profile : f.user_profile;
@@ -184,10 +207,11 @@ export default function Friends({ onShowClick }: FriendsProps) {
                   </div>
                   <button
                     onClick={() => sendFriendRequest(profile.id)}
-                    className="p-2 text-zinc-400 hover:text-netflix-red transition-colors"
+                    disabled={isSendingRequest === profile.id}
+                    className="p-2 text-zinc-400 hover:text-netflix-red transition-colors disabled:opacity-50"
                     title="Send Friend Request"
                   >
-                    <UserPlus size={20} />
+                    {isSendingRequest === profile.id ? <Loader2 className="animate-spin" size={20} /> : <UserPlus size={20} />}
                   </button>
                 </div>
               ))}
@@ -195,32 +219,80 @@ export default function Friends({ onShowClick }: FriendsProps) {
           </section>
 
           {/* Requests Section */}
-          {pendingIncoming.length > 0 && (
-            <section className="space-y-6">
-              <h2 className="serif-title text-xl text-netflix-red">Friend Requests</h2>
-              <div className="space-y-3">
-                {pendingIncoming.map((f) => (
-                  <div key={f.id} className="flex items-center justify-between p-3 bg-zinc-900/50 rounded-lg border border-netflix-red/30">
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm font-bold">{f.user_profile?.display_name}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => updateFriendship(f.id, 'accepted')}
-                        className="p-2 text-green-500 hover:bg-green-500/10 rounded-full transition-colors"
-                      >
-                        <Check size={18} />
-                      </button>
-                      <button
-                        onClick={() => updateFriendship(f.id, 'declined')}
-                        className="p-2 text-red-500 hover:bg-red-500/10 rounded-full transition-colors"
-                      >
-                        <X size={18} />
-                      </button>
-                    </div>
+          {(pendingIncoming.length > 0 || pendingOutgoing.length > 0) && (
+            <section className="space-y-8">
+              {pendingIncoming.length > 0 && (
+                <div className="space-y-4">
+                  <h2 className="serif-title text-xl text-netflix-red flex items-center gap-2">
+                    Incoming Requests
+                    <span className="bg-netflix-red text-white text-[10px] px-2 py-0.5 rounded-full">{pendingIncoming.length}</span>
+                  </h2>
+                  <div className="space-y-3">
+                    {pendingIncoming.map((f) => (
+                      <div key={f.id} className="flex items-center justify-between p-3 bg-zinc-900/50 rounded-lg border border-netflix-red/30">
+                        <div className="flex items-center gap-3">
+                          {f.user_profile?.avatar_url ? (
+                            <img src={f.user_profile.avatar_url} alt={f.user_profile.display_name} className="w-8 h-8 rounded-full border border-zinc-700" referrerPolicy="no-referrer" />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-[10px] font-bold border border-zinc-700 uppercase">
+                              {f.user_profile?.display_name.charAt(0)}
+                            </div>
+                          )}
+                          <span className="text-sm font-bold">{f.user_profile?.display_name}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => updateFriendship(f.id, 'accepted')}
+                            className="p-2 text-green-500 hover:bg-green-500/10 rounded-full transition-colors"
+                            title="Accept"
+                          >
+                            <Check size={18} />
+                          </button>
+                          <button
+                            onClick={() => updateFriendship(f.id, 'declined')}
+                            className="p-2 text-red-500 hover:bg-red-500/10 rounded-full transition-colors"
+                            title="Decline"
+                          >
+                            <X size={18} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                </div>
+              )}
+
+              {pendingOutgoing.length > 0 && (
+                <div className="space-y-4">
+                  <h2 className="serif-title text-xl text-zinc-400">Outgoing Requests</h2>
+                  <div className="space-y-3">
+                    {pendingOutgoing.map((f) => (
+                      <div key={f.id} className="flex items-center justify-between p-3 bg-zinc-900/30 rounded-lg border border-zinc-800">
+                        <div className="flex items-center gap-3">
+                          {f.friend_profile?.avatar_url ? (
+                            <img src={f.friend_profile.avatar_url} alt={f.friend_profile.display_name} className="w-8 h-8 rounded-full border border-zinc-700 opacity-50" referrerPolicy="no-referrer" />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-[10px] font-bold border border-zinc-700 uppercase opacity-50">
+                              {f.friend_profile?.display_name.charAt(0)}
+                            </div>
+                          )}
+                          <div className="flex flex-col">
+                            <span className="text-sm font-bold text-zinc-400">{f.friend_profile?.display_name}</span>
+                            <span className="text-[9px] uppercase tracking-widest text-zinc-600 font-bold">Pending</span>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => cancelRequest(f.id)}
+                          className="p-2 text-zinc-600 hover:text-white transition-colors"
+                          title="Cancel Request"
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </section>
           )}
 

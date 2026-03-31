@@ -21,24 +21,38 @@ export default function App() {
   const [selectedUserShow, setSelectedUserShow] = useState<UserShow | null>(null);
   const [selectedActorName, setSelectedActorName] = useState<string | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
 
   useEffect(() => {
     // Check current session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setIsLoading(false);
+      if (session?.user) fetchPendingCount(session.user.id);
     });
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
+      if (session?.user) fetchPendingCount(session.user.id);
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
+  const fetchPendingCount = async (userId: string) => {
+    const { count } = await supabase
+      .from('Friendships')
+      .select('*', { count: 'exact', head: true })
+      .eq('friend_id', userId)
+      .eq('status', 'pending');
+    
+    setPendingRequestsCount(count || 0);
+  };
+
   const handleRefresh = () => {
     setRefreshTrigger(prev => prev + 1);
+    if (session?.user) fetchPendingCount(session.user.id);
   };
 
   const handleShowClick = (userShow: UserShow) => {
@@ -122,6 +136,7 @@ export default function App() {
         onProfileClick={() => setIsProfileModalOpen(true)}
         currentView={currentView}
         refreshTrigger={refreshTrigger}
+        pendingRequestsCount={pendingRequestsCount}
       />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
@@ -134,6 +149,7 @@ export default function App() {
         ) : (
           <Friends 
             onShowClick={handleShowClick}
+            onFriendshipUpdate={handleRefresh}
           />
         )}
       </main>
