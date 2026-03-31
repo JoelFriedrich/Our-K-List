@@ -23,11 +23,26 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
   const [likesCount, setLikesCount] = useState(0);
   const [isLiked, setIsLiked] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [isInMyList, setIsInMyList] = useState(false);
+  const [isAddingToList, setIsAddingToList] = useState(false);
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     const init = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       setCurrentUserId(user?.id || null);
+
+      if (user) {
+        // Check if in my list
+        const { data: myShow } = await supabase
+          .from('User_shows')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('show_id', userShow.show_id)
+          .maybeSingle();
+        setIsInMyList(!!myShow);
+      }
 
       // Fetch actors
       if (userShow.show?.actors) {
@@ -109,9 +124,39 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
     }
   };
 
-  const handleDelete = async () => {
-    if (!window.confirm('Are you sure you want to remove this show from your list?')) return;
+  const handleAddToMyList = async () => {
+    if (!currentUserId || isAddingToList) return;
     
+    setIsAddingToList(true);
+    try {
+      const { error } = await supabase
+        .from('User_shows')
+        .insert({
+          user_id: currentUserId,
+          show_id: userShow.show_id,
+          status: 'want_to_watch',
+          user_rating: 0,
+          comments: ''
+        });
+
+      if (error) throw error;
+      toast.success('Added to your Want to Watch list!');
+      setIsInMyList(true);
+      onUpdate();
+    } catch (error: any) {
+      toast.error(error.message);
+    } finally {
+      setIsAddingToList(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!isConfirmingDelete) {
+      setIsConfirmingDelete(true);
+      return;
+    }
+    
+    setIsDeleting(true);
     try {
       const { error } = await supabase
         .from('User_shows')
@@ -124,6 +169,8 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
       onUpdate();
     } catch (error: any) {
       toast.error(error.message);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -182,6 +229,27 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
                 <h1 className="serif-title text-3xl sm:text-5xl text-white mb-4 leading-tight">
                   {show.title}
                 </h1>
+                
+                {isFriendView && !isInMyList && (
+                  <button
+                    onClick={handleAddToMyList}
+                    disabled={isAddingToList}
+                    className="btn-primary flex items-center gap-2 px-6 py-3 text-xs uppercase tracking-[0.2em] font-bold"
+                  >
+                    {isAddingToList ? (
+                      <Loader2 className="animate-spin" size={16} />
+                    ) : (
+                      <Check size={16} />
+                    )}
+                    Add to Want to Watch
+                  </button>
+                )}
+                {isFriendView && isInMyList && (
+                  <div className="flex items-center gap-2 text-green-500 font-bold text-[10px] uppercase tracking-widest bg-green-500/10 px-3 py-1.5 rounded-full w-fit">
+                    <Check size={14} />
+                    In your list
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -336,14 +404,37 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
                         </button>
                         <span className="text-sm font-bold text-zinc-400">{likesCount}</span>
                       </div>
+                    </div>
+                  )}
 
-                      {!isFriendView && (
+                  {!isFriendView && (
+                    <div className="pt-6 border-t border-zinc-800 mt-6 flex justify-end">
+                      {isConfirmingDelete ? (
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs text-zinc-400 font-medium">Remove from list?</span>
+                          <button
+                            onClick={() => setIsConfirmingDelete(false)}
+                            className="text-xs font-bold text-zinc-500 hover:text-white transition-colors"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={handleDelete}
+                            disabled={isDeleting}
+                            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded text-xs font-bold transition-colors flex items-center gap-2"
+                          >
+                            {isDeleting ? <Loader2 className="animate-spin" size={14} /> : <Trash2 size={14} />}
+                            Confirm
+                          </button>
+                        </div>
+                      ) : (
                         <button
-                          onClick={handleDelete}
-                          className="text-zinc-700 hover:text-red-500 transition-colors"
+                          onClick={() => setIsConfirmingDelete(true)}
+                          className="text-zinc-700 hover:text-red-500 transition-colors flex items-center gap-2 text-xs font-bold uppercase tracking-widest"
                           title="Delete from list"
                         >
-                          <Trash2 size={18} />
+                          <Trash2 size={16} />
+                          Delete Show
                         </button>
                       )}
                     </div>

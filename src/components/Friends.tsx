@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Profile, Friendship, UserShow } from '../types';
-import { Search, UserPlus, Check, X, Loader2, Users, ChevronRight, Star } from 'lucide-react';
+import { Profile, Friendship, UserShow, ShowStatus } from '../types';
+import { Search, UserPlus, Check, X, Loader2, Users, ChevronRight, Star, LayoutGrid, List as ListIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'react-hot-toast';
 import ShowCard from './ShowCard';
@@ -9,19 +9,22 @@ import ShowCard from './ShowCard';
 interface FriendsProps {
   onShowClick: (userShow: UserShow) => void;
   onFriendshipUpdate?: () => void;
+  refreshTrigger?: number;
 }
 
-export default function Friends({ onShowClick, onFriendshipUpdate }: FriendsProps) {
+export default function Friends({ onShowClick, onFriendshipUpdate, refreshTrigger = 0 }: FriendsProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Profile[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [friendships, setFriendships] = useState<Friendship[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedFriend, setSelectedFriend] = useState<Profile | null>(null);
-  const [friendShows, setFriendShows] = useState<UserShow[]>([]);
+  const [allFriendShows, setAllFriendShows] = useState<UserShow[]>([]);
   const [isFetchingFriendShows, setIsFetchingFriendShows] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [isSendingRequest, setIsSendingRequest] = useState<string | null>(null);
+  const [friendStatusFilter, setFriendStatusFilter] = useState<ShowStatus>('watched');
+  const [friendViewMode, setFriendViewMode] = useState<'grid' | 'list'>('grid');
 
   useEffect(() => {
     const init = async () => {
@@ -34,7 +37,13 @@ export default function Friends({ onShowClick, onFriendshipUpdate }: FriendsProp
       }
     };
     init();
-  }, []);
+  }, [refreshTrigger]);
+
+  useEffect(() => {
+    if (selectedFriend) {
+      browseFriendList(selectedFriend);
+    }
+  }, [refreshTrigger]);
 
   const fetchFriendships = async (uid: string) => {
     setIsLoading(true);
@@ -124,6 +133,7 @@ export default function Friends({ onShowClick, onFriendshipUpdate }: FriendsProp
   const browseFriendList = async (friend: Profile) => {
     setSelectedFriend(friend);
     setIsFetchingFriendShows(true);
+    setAllFriendShows([]); // Clear previous shows
     
     const { data, error } = await supabase
       .from('User_shows')
@@ -132,16 +142,18 @@ export default function Friends({ onShowClick, onFriendshipUpdate }: FriendsProp
         show:Show_data(*)
       `)
       .eq('user_id', friend.id)
-      .eq('status', 'watched')
       .order('user_rating', { ascending: false });
 
     if (error) {
+      console.error('Error fetching friend list:', error);
       toast.error('Failed to fetch friend list');
     } else {
-      setFriendShows(data || []);
+      setAllFriendShows(data || []);
     }
     setIsFetchingFriendShows(false);
   };
+
+  const filteredFriendShows = allFriendShows.filter(s => s.status === friendStatusFilter);
 
   const cancelRequest = async (friendshipId: string) => {
     if (!currentUserId) return;
@@ -360,19 +372,54 @@ export default function Friends({ onShowClick, onFriendshipUpdate }: FriendsProp
                 exit={{ opacity: 0, x: -20 }}
                 className="space-y-8"
               >
-                <div className="flex items-center gap-6 pb-8 border-b border-zinc-800">
-                  {selectedFriend.avatar_url ? (
-                    <img src={selectedFriend.avatar_url} alt={selectedFriend.display_name} className="w-20 h-20 rounded-full border-2 border-netflix-red shadow-2xl" referrerPolicy="no-referrer" />
-                  ) : (
-                    <div className="w-20 h-20 rounded-full bg-zinc-800 flex items-center justify-center text-3xl font-serif italic border-2 border-netflix-red shadow-2xl uppercase">
-                      {selectedFriend.display_name.charAt(0)}
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-6 pb-8 border-b border-zinc-800">
+                  <div className="flex items-center gap-6">
+                    {selectedFriend.avatar_url ? (
+                      <img src={selectedFriend.avatar_url} alt={selectedFriend.display_name} className="w-20 h-20 rounded-full border-2 border-netflix-red shadow-2xl" referrerPolicy="no-referrer" />
+                    ) : (
+                      <div className="w-20 h-20 rounded-full bg-zinc-800 flex items-center justify-center text-3xl font-serif italic border-2 border-netflix-red shadow-2xl uppercase">
+                        {selectedFriend.display_name.charAt(0)}
+                      </div>
+                    )}
+                    <div>
+                      <h2 className="serif-title text-4xl mb-1">{selectedFriend.display_name}'s List</h2>
+                      <p className="text-zinc-500 font-medium uppercase tracking-widest text-xs">
+                        {filteredFriendShows.length} {friendStatusFilter.replace(/_/g, ' ')} Shows
+                      </p>
                     </div>
-                  )}
-                  <div>
-                    <h2 className="serif-title text-4xl mb-1">{selectedFriend.display_name}'s List</h2>
-                    <p className="text-zinc-500 font-medium uppercase tracking-widest text-xs">
-                      {friendShows.length} Watched Shows
-                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                    <div className="flex bg-zinc-900 p-1 rounded-lg border border-zinc-800">
+                      {(['watched', 'watching', 'want_to_watch'] as ShowStatus[]).map((status) => (
+                        <button
+                          key={status}
+                          onClick={() => setFriendStatusFilter(status)}
+                          className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider transition-all rounded-md ${
+                            friendStatusFilter === status 
+                              ? 'bg-netflix-red text-white shadow-lg' 
+                              : 'text-zinc-500 hover:text-zinc-300'
+                          }`}
+                        >
+                          {status.replace(/_/g, ' ')}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="flex bg-zinc-900 p-1 rounded-lg border border-zinc-800">
+                      <button
+                        onClick={() => setFriendViewMode('grid')}
+                        className={`p-2 rounded-md transition-all ${friendViewMode === 'grid' ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+                      >
+                        <LayoutGrid size={14} />
+                      </button>
+                      <button
+                        onClick={() => setFriendViewMode('list')}
+                        className={`p-2 rounded-md transition-all ${friendViewMode === 'list' ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+                      >
+                        <ListIcon size={14} />
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -381,36 +428,71 @@ export default function Friends({ onShowClick, onFriendshipUpdate }: FriendsProp
                     <Loader2 className="animate-spin text-netflix-red" size={40} />
                     <p className="text-zinc-500 text-sm font-medium uppercase tracking-widest">Fetching list...</p>
                   </div>
-                ) : friendShows.length === 0 ? (
+                ) : filteredFriendShows.length === 0 ? (
                   <div className="text-center py-24 bg-zinc-900/30 rounded-xl border border-dashed border-zinc-800">
-                    <p className="text-zinc-500 font-medium">This user hasn't added any shows yet.</p>
+                    <p className="text-zinc-500 font-medium">No shows in this category yet.</p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-8">
-                    {friendShows.map((userShow) => (
-                      <div key={userShow.id} className="relative group cursor-pointer" onClick={() => onShowClick(userShow)}>
-                        <div className="aspect-[2/3] relative overflow-hidden rounded-lg shadow-xl">
-                          <img
-                            src={userShow.show?.poster_url}
-                            alt={userShow.show?.title}
-                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                            referrerPolicy="no-referrer"
+                  <AnimatePresence mode="wait">
+                    {friendViewMode === 'grid' ? (
+                      <motion.div
+                        key="grid"
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        className="grid grid-cols-2 sm:grid-cols-3 gap-8"
+                      >
+                        {filteredFriendShows.map((userShow) => (
+                          <ShowCard
+                            key={userShow.id}
+                            userShow={userShow}
+                            onClick={() => onShowClick(userShow)}
                           />
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity p-4 flex flex-col justify-end">
-                            <div className="flex items-center gap-1 text-netflix-red mb-1">
-                              <Star size={14} className="fill-netflix-red" />
-                              <span className="font-bold text-sm">{userShow.user_rating}</span>
+                        ))}
+                      </motion.div>
+                    ) : (
+                      <motion.div
+                        key="list"
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        className="space-y-4"
+                      >
+                        {filteredFriendShows.map((userShow, index) => (
+                          <div
+                            key={userShow.id}
+                            onClick={() => onShowClick(userShow)}
+                            className="flex items-center gap-6 p-4 bg-zinc-900/50 hover:bg-zinc-800/50 rounded-lg border border-zinc-800 transition-colors cursor-pointer group"
+                          >
+                            <div className="text-2xl font-serif italic text-zinc-700 group-hover:text-netflix-red transition-colors w-8">
+                              {index + 1}
                             </div>
-                            <p className="text-[10px] text-zinc-400 italic line-clamp-2">"{userShow.comments}"</p>
+                            <img
+                              src={userShow.show?.poster_url}
+                              alt={userShow.show?.title}
+                              className="w-16 h-24 object-cover rounded shadow-md"
+                              referrerPolicy="no-referrer"
+                            />
+                            <div className="flex-1">
+                              <h3 className="font-bold text-lg mb-1">{userShow.show?.title}</h3>
+                              <div className="flex items-center gap-3">
+                                {friendStatusFilter !== 'want_to_watch' && (
+                                  <div className="flex items-center gap-1 text-netflix-red">
+                                    <span className="font-bold">{userShow.user_rating}</span>
+                                    <span className="text-xs text-zinc-500">/ 10</span>
+                                  </div>
+                                )}
+                                <span className={`status-badge status-${userShow.status}`}>
+                                  {userShow.status.replace(/_/g, ' ')}
+                                </span>
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                        <h3 className="mt-3 font-bold text-sm line-clamp-1 group-hover:text-netflix-red transition-colors">
-                          {userShow.show?.title}
-                        </h3>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                        ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                ) /* End of friendShows.length check */ }
               </motion.div>
             ) : (
               <div className="h-full flex flex-col items-center justify-center py-32 text-center space-y-6 opacity-30">

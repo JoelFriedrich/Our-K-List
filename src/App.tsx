@@ -150,6 +150,7 @@ export default function App() {
           <Friends 
             onShowClick={handleShowClick}
             onFriendshipUpdate={handleRefresh}
+            refreshTrigger={refreshTrigger}
           />
         )}
       </main>
