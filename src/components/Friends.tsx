@@ -42,14 +42,15 @@ export default function Friends({ onShowClick, onFriendshipUpdate }: FriendsProp
       .from('Friendships')
       .select(`
         *,
-        friend_profile:Profiles!Friendships_friend_id_fkey(*),
-        user_profile:Profiles!Friendships_user_id_fkey(*)
+        friend_profile:Profiles!friend_id(*),
+        user_profile:Profiles!user_id(*)
       `)
       .or(`user_id.eq.${uid},friend_id.eq.${uid}`)
       .neq('status', 'declined');
 
     if (error) {
       console.error('Error fetching friendships:', error);
+      toast.error('Failed to load friends');
     } else {
       setFriendships(data || []);
     }
@@ -235,7 +236,7 @@ export default function Friends({ onShowClick, onFriendshipUpdate }: FriendsProp
                             <img src={f.user_profile.avatar_url} alt={f.user_profile.display_name} className="w-8 h-8 rounded-full border border-zinc-700" referrerPolicy="no-referrer" />
                           ) : (
                             <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-[10px] font-bold border border-zinc-700 uppercase">
-                              {f.user_profile?.display_name.charAt(0)}
+                              {f.user_profile?.display_name?.charAt(0) || '?'}
                             </div>
                           )}
                           <span className="text-sm font-bold">{f.user_profile?.display_name}</span>
@@ -273,7 +274,7 @@ export default function Friends({ onShowClick, onFriendshipUpdate }: FriendsProp
                             <img src={f.friend_profile.avatar_url} alt={f.friend_profile.display_name} className="w-8 h-8 rounded-full border border-zinc-700 opacity-50" referrerPolicy="no-referrer" />
                           ) : (
                             <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-[10px] font-bold border border-zinc-700 uppercase opacity-50">
-                              {f.friend_profile?.display_name.charAt(0)}
+                              {f.friend_profile?.display_name?.charAt(0) || '?'}
                             </div>
                           )}
                           <div className="flex flex-col">
