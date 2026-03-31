@@ -1,54 +1,63 @@
-import { Star, Clock, Tv } from 'lucide-react';
-import { Show } from '../types';
+import React from 'react';
+import { UserShow } from '../types';
+import { Star } from 'lucide-react';
 import { motion } from 'motion/react';
 
 interface ShowCardProps {
-  show: Show;
+  key?: string | number;
+  userShow: UserShow;
   onClick: () => void;
-  sortBy: 'friedrich_rating' | 'rating';
-  key?: string;
 }
 
-export default function ShowCard({ show, onClick, sortBy }: ShowCardProps) {
+export default function ShowCard({ userShow, onClick }: ShowCardProps) {
+  const { show, user_rating, status } = userShow;
+
+  if (!show) return null;
+
   return (
     <motion.div
-      whileHover={{ scale: 1.05, zIndex: 10 }}
-      transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+      whileHover={{ y: -10 }}
       onClick={onClick}
-      className="relative group cursor-pointer bg-card-bg border-4 border-zinc-900 hover:border-netflix-red transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
+      className="netflix-card group relative"
     >
       <div className="aspect-[2/3] relative">
         <img
           src={show.poster_url}
           alt={show.title}
-          className="w-full h-full object-cover transition-all"
+          className="w-full h-full object-cover rounded-md shadow-lg"
           referrerPolicy="no-referrer"
         />
-        
-        {/* Rating Badge - Pixel Style */}
-        <div className={`absolute top-2 right-2 ${sortBy === 'friedrich_rating' ? 'bg-netflix-red' : 'bg-yellow-500'} text-white px-2 py-1 font-game text-[8px] shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] flex flex-col items-center`}>
-          <div className="text-[6px] opacity-80 mb-0.5">{sortBy === 'friedrich_rating' ? "JOEL'S" : "LINDSAY'S"}</div>
-          <div>{sortBy === 'friedrich_rating' ? show.friedrich_rating : show.rating}</div>
-        </div>
-
-        {/* Overlay on Hover */}
-        <div className="absolute inset-0 bg-black/80 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-center items-center p-4 text-center">
-          <h3 className="font-game text-[10px] leading-tight mb-4 text-white">{show.title}</h3>
-          <div className="space-y-2 font-mono text-sm text-zinc-300">
-            <div className="flex items-center justify-center gap-2">
-              <Star size={14} className={`${sortBy === 'friedrich_rating' ? 'text-netflix-red fill-netflix-red' : 'text-yellow-500 fill-yellow-500'}`} /> 
-              {sortBy === 'friedrich_rating' ? show.friedrich_rating : show.rating}
-            </div>
-            <div className="flex items-center justify-center gap-2"><Tv size={14} /> {show.seasons} SEASONS</div>
-            <div className="flex items-center justify-center gap-2"><Clock size={14} /> {show.episodes} EPS</div>
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4">
+          <p className="text-xs text-zinc-300 line-clamp-3 mb-2">{show.summary}</p>
+          <div className="flex items-center justify-between">
+            <span className={`status-badge status-${status} bg-black/60`}>
+              {status.replace(/_/g, ' ')}
+            </span>
           </div>
-          <div className="mt-4 font-game text-[8px] text-netflix-red animate-pulse">VIEW DETAILS</div>
         </div>
+        
+        {/* Rating Badge */}
+        {status !== 'want_to_watch' && (
+          <div className="absolute top-2 right-2 bg-black/70 backdrop-blur-md px-2 py-1 rounded-md flex items-center gap-1 border border-zinc-800 shadow-xl">
+            <Star size={12} className="text-netflix-red fill-netflix-red" />
+            <span className="text-xs font-bold text-white">{user_rating}</span>
+          </div>
+        )}
       </div>
       
-      {/* Title below for mobile/static view */}
-      <div className="p-2 bg-zinc-950 border-t-4 border-zinc-900">
-        <h3 className="font-game text-[8px] truncate text-zinc-400 group-hover:text-white">{show.title}</h3>
+      <div className="mt-3">
+        <h3 className="font-bold text-sm sm:text-base leading-tight line-clamp-1 group-hover:text-netflix-red transition-colors">
+          {show.title}
+        </h3>
+        <div className="flex items-center gap-2 mt-1">
+          <span className="text-[10px] text-zinc-500 font-medium uppercase tracking-widest">
+            {show.seasons} Seasons
+          </span>
+          <span className="text-zinc-700">•</span>
+          <span className="text-[10px] text-zinc-500 font-medium uppercase tracking-widest">
+            {show.episodes} Episodes
+          </span>
+        </div>
       </div>
     </motion.div>
   );

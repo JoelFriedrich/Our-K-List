@@ -1,5 +1,5 @@
 {
-  "name": "Friedrich K-List",
-  "description": "A retro-styled personal tracker for K-Dramas watched together, featuring ratings, actor info, and TMDB integration.",
+  "name": "Our K-List",
+  "description": "A collaborative K-Drama tracker with Supabase Auth, TMDB integration, friend lists, and social features.",
   "requestFramePermissions": []
 }
