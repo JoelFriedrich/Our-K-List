@@ -42,8 +42,8 @@ export default function Friends({ onShowClick, onFriendshipUpdate }: FriendsProp
       .from('Friendships')
       .select(`
         *,
-        friend_profile:Profiles!friend_id(*),
-        user_profile:Profiles!user_id(*)
+        friend_profile:Profiles!friendships_friend_id_profiles_fkey(*),
+        user_profile:Profiles!friendships_user_id_profiles_fkey(*)
       `)
       .or(`user_id.eq.${uid},friend_id.eq.${uid}`)
       .neq('status', 'declined');

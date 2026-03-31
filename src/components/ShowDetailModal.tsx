@@ -252,7 +252,7 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
                   <div>
                     <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 block mb-2">Rating</label>
                     {isEditing ? (
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-4">
                         <input
                           type="range"
                           min="0"
@@ -262,7 +262,21 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
                           onChange={(e) => setRating(parseFloat(e.target.value))}
                           className="flex-1 accent-netflix-red"
                         />
-                        <span className="text-xl font-serif italic w-12 text-center">{rating}</span>
+                        <div className="flex items-center gap-2 bg-zinc-800 px-3 py-1 rounded border border-zinc-700">
+                          <Star size={14} className="text-netflix-red fill-netflix-red" />
+                          <input
+                            type="number"
+                            min="0"
+                            max="10"
+                            step="0.1"
+                            value={rating}
+                            onChange={(e) => {
+                              const val = parseFloat(e.target.value);
+                              if (!isNaN(val)) setRating(Math.min(10, Math.max(0, val)));
+                            }}
+                            className="bg-transparent border-none text-white w-12 text-sm font-serif italic focus:ring-0 p-0"
+                          />
+                        </div>
                       </div>
                     ) : (
                       <div className="flex items-center gap-2">

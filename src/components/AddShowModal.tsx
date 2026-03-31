@@ -254,7 +254,7 @@ export default function AddShowModal({ isOpen, onClose, onSuccess }: AddShowModa
                   {status !== 'want_to_watch' && (
                     <div className="space-y-2">
                       <label className="text-xs font-bold uppercase tracking-widest text-zinc-500">Rating</label>
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-4">
                         <input
                           type="range"
                           min="0"
@@ -264,9 +264,20 @@ export default function AddShowModal({ isOpen, onClose, onSuccess }: AddShowModa
                           onChange={(e) => setRating(parseFloat(e.target.value))}
                           className="flex-1 accent-netflix-red"
                         />
-                        <div className="flex items-center gap-1 text-xl font-serif italic">
-                          <Star size={16} className="text-netflix-red fill-netflix-red" />
-                          {rating}
+                        <div className="flex items-center gap-2 bg-zinc-800 px-3 py-1 rounded border border-zinc-700">
+                          <Star size={14} className="text-netflix-red fill-netflix-red" />
+                          <input
+                            type="number"
+                            min="0"
+                            max="10"
+                            step="0.1"
+                            value={rating}
+                            onChange={(e) => {
+                              const val = parseFloat(e.target.value);
+                              if (!isNaN(val)) setRating(Math.min(10, Math.max(0, val)));
+                            }}
+                            className="bg-transparent border-none text-white w-12 text-sm font-serif italic focus:ring-0 p-0"
+                          />
                         </div>
                       </div>
                     </div>
