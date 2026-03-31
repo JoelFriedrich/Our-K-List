@@ -108,7 +108,7 @@ export default function AddShowModal({ isOpen, onClose, onSuccess }: AddShowModa
       }
 
       // 4. Create User_shows entry
-      const { error: userShowError } = await supabase
+      const { data: userShowData, error: userShowError } = await supabase
         .from('User_shows')
         .insert({
           user_id: user.id,
@@ -116,9 +116,22 @@ export default function AddShowModal({ isOpen, onClose, onSuccess }: AddShowModa
           user_rating: rating,
           comments,
           status
-        });
+        })
+        .select()
+        .single();
 
       if (userShowError) throw userShowError;
+
+      // Part 1 — Write feed events (silent background insert)
+      if (userShowData) {
+        supabase.from('Feed_events').insert({
+          user_id: user.id,
+          event_type: 'added_show',
+          show_id: showData.id,
+          user_show_id: userShowData.id,
+          metadata: { status }
+        }).then();
+      }
 
       toast.success('Added to your list!');
       onSuccess();

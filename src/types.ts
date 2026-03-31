@@ -76,3 +76,18 @@ export interface TMDBActor {
   profile_path: string;
   character: string;
 }
+
+export type FeedEventType = 'added_show' | 'status_changed' | 'commented' | 'rated' | 'liked_comment';
+
+export interface FeedEvent {
+  id: string;
+  user_id: string;
+  event_type: FeedEventType;
+  show_id?: string;
+  user_show_id?: string;
+  metadata: any;
+  created_at: string;
+  // Joined data
+  Profiles?: Profile;
+  Show_data?: Show;
+}

@@ -75,6 +75,7 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
   }, [userShow.id]);
 
   const handleSave = async () => {
+    if (!currentUserId) return;
     setIsSaving(true);
     try {
       const { error } = await supabase
@@ -87,6 +88,36 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
         .eq('id', userShow.id);
 
       if (error) throw error;
+
+      // Part 1 — Write feed events (silent background insert)
+      if (status !== userShow.status) {
+        supabase.from('Feed_events').insert({
+          user_id: currentUserId,
+          event_type: 'status_changed',
+          show_id: userShow.show_id,
+          user_show_id: userShow.id,
+          metadata: { old_status: userShow.status, new_status: status }
+        }).then();
+      }
+      if (rating !== userShow.user_rating) {
+        supabase.from('Feed_events').insert({
+          user_id: currentUserId,
+          event_type: 'rated',
+          show_id: userShow.show_id,
+          user_show_id: userShow.id,
+          metadata: { rating }
+        }).then();
+      }
+      if (comments !== userShow.comments && comments.trim()) {
+        supabase.from('Feed_events').insert({
+          user_id: currentUserId,
+          event_type: 'commented',
+          show_id: userShow.show_id,
+          user_show_id: userShow.id,
+          metadata: { comment: comments }
+        }).then();
+      }
+
       toast.success('Updated successfully!');
       setIsEditing(false);
       onUpdate();
@@ -116,6 +147,22 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
             user_show_id: userShow.id,
             user_id: currentUserId
           });
+        
+        // Fetch friend's display name for metadata
+        const { data: friendProfile } = await supabase
+          .from('Profiles')
+          .select('display_name')
+          .eq('id', userShow.user_id)
+          .single();
+
+        supabase.from('Feed_events').insert({
+          user_id: currentUserId,
+          event_type: 'liked_comment',
+          show_id: userShow.show_id,
+          user_show_id: userShow.id,
+          metadata: { liked_user_display_name: friendProfile?.display_name || 'Friend' }
+        }).then();
+
         setLikesCount(prev => prev + 1);
         setIsLiked(true);
       }
@@ -129,7 +176,7 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
     
     setIsAddingToList(true);
     try {
-      const { error } = await supabase
+      const { data: newUserShow, error } = await supabase
         .from('User_shows')
         .insert({
           user_id: currentUserId,
@@ -137,9 +184,23 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
           status: 'want_to_watch',
           user_rating: 0,
           comments: ''
-        });
+        })
+        .select()
+        .single();
 
       if (error) throw error;
+
+      // Part 1 — Write feed events (silent background insert)
+      if (newUserShow) {
+        supabase.from('Feed_events').insert({
+          user_id: currentUserId,
+          event_type: 'added_show',
+          show_id: userShow.show_id,
+          user_show_id: newUserShow.id,
+          metadata: { status: 'want_to_watch' }
+        }).then();
+      }
+
       toast.success('Added to your Want to Watch list!');
       setIsInMyList(true);
       onUpdate();

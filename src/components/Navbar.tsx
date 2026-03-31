@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Heart, LogOut, Users, Plus, Search, User } from 'lucide-react';
+import { Heart, LogOut, Users, Plus, Search, User, Activity } from 'lucide-react';
 import { Profile } from '../types';
 import { toast } from 'react-hot-toast';
 
 interface NavbarProps {
   onAddClick: () => void;
-  onViewChange: (view: 'my-list' | 'friends') => void;
+  onViewChange: (view: 'my-list' | 'friends' | 'feed') => void;
   onProfileClick: () => void;
-  currentView: 'my-list' | 'friends';
+  currentView: 'my-list' | 'friends' | 'feed';
   refreshTrigger: number;
   pendingRequestsCount: number;
 }
@@ -51,6 +51,12 @@ export default function Navbar({ onAddClick, onViewChange, onProfileClick, curre
             </div>
 
             <div className="hidden md:flex items-center gap-6">
+              <button
+                onClick={() => onViewChange('feed')}
+                className={`text-sm font-semibold transition-colors ${currentView === 'feed' ? 'text-white' : 'text-zinc-400 hover:text-zinc-200'}`}
+              >
+                Feed
+              </button>
               <button
                 onClick={() => onViewChange('my-list')}
                 className={`text-sm font-semibold transition-colors ${currentView === 'my-list' ? 'text-white' : 'text-zinc-400 hover:text-zinc-200'}`}
@@ -117,6 +123,13 @@ export default function Navbar({ onAddClick, onViewChange, onProfileClick, curre
       
       {/* Mobile Nav */}
       <div className="md:hidden flex items-center justify-center gap-8 py-3 border-t border-zinc-900 bg-black">
+        <button
+          onClick={() => onViewChange('feed')}
+          className={`flex flex-col items-center gap-1 text-[10px] uppercase tracking-widest font-bold ${currentView === 'feed' ? 'text-white' : 'text-zinc-500'}`}
+        >
+          <Activity size={18} />
+          Feed
+        </button>
         <button
           onClick={() => onViewChange('my-list')}
           className={`flex flex-col items-center gap-1 text-[10px] uppercase tracking-widest font-bold ${currentView === 'my-list' ? 'text-white' : 'text-zinc-500'}`}

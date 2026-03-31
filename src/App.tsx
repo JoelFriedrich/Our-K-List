@@ -5,6 +5,7 @@ import Navbar from './components/Navbar';
 import Auth from './components/Auth';
 import MyList from './components/MyList';
 import Friends from './components/Friends';
+import Feed from './components/Feed';
 import AddShowModal from './components/AddShowModal';
 import ShowDetailModal from './components/ShowDetailModal';
 import ActorModal from './components/ActorModal';
@@ -15,7 +16,7 @@ import { Session } from '@supabase/supabase-js';
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [currentView, setCurrentView] = useState<'my-list' | 'friends'>('my-list');
+  const [currentView, setCurrentView] = useState<'my-list' | 'friends' | 'feed'>('feed');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [selectedUserShow, setSelectedUserShow] = useState<UserShow | null>(null);
@@ -146,10 +147,15 @@ export default function App() {
             onShowClick={handleShowClick}
             refreshTrigger={refreshTrigger}
           />
-        ) : (
+        ) : currentView === 'friends' ? (
           <Friends 
             onShowClick={handleShowClick}
             onFriendshipUpdate={handleRefresh}
+            refreshTrigger={refreshTrigger}
+          />
+        ) : (
+          <Feed 
+            onShowClick={handleShowClick}
             refreshTrigger={refreshTrigger}
           />
         )}
