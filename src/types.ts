@@ -94,7 +94,8 @@ export type AwardType =
   | 'Best Historical'
   | 'Best Cinematic'
   | 'Most Creative'
-  | 'Most Wholesome';
+  | 'Most Wholesome'
+  | 'Most Rewatched';
 
 export interface Award {
   id: string;

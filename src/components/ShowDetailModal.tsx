@@ -29,7 +29,8 @@ const AWARD_CONFIG: Record<AwardType, { label: string; icon: string; color: stri
   'Best Historical': { label: 'Best Historical', icon: '🏯', color: 'text-amber-600' },
   'Best Cinematic': { label: 'Best Cinematic', icon: '🎥', color: 'text-zinc-400' },
   'Most Creative': { label: 'Most Creative', icon: '💡', color: 'text-cyan-400' },
-  'Most Wholesome': { label: 'Most Wholesome', icon: '✨', color: 'text-indigo-400' }
+  'Most Wholesome': { label: 'Most Wholesome', icon: '✨', color: 'text-indigo-400' },
+  'Most Rewatched': { label: 'Most Rewatched', icon: '🔄', color: 'text-teal-400' }
 };
 
 export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorClick, isFriendView = false }: ShowDetailModalProps) {
@@ -376,7 +377,7 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
                   {show.title}
                   {show.release_year ? (
                     <span className="text-zinc-500 text-xl sm:text-3xl font-sans font-normal ml-3">
-                      ({show.release_year})
+                      {show.release_year}
                     </span>
                   ) : null}
                 </h1>
