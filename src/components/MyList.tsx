@@ -49,7 +49,8 @@ export default function MyList({ onShowClick, refreshTrigger }: MyListProps) {
             actors,
             characters,
             tmdb_id,
-            episode_runtime
+            episode_runtime,
+            release_year
           )
         `)
         .eq('user_id', user.id)
@@ -258,8 +259,15 @@ export default function MyList({ onShowClick, refreshTrigger }: MyListProps) {
                     className="w-16 h-24 object-cover rounded shadow-md"
                     referrerPolicy="no-referrer"
                   />
-                  <div className="flex-1">
-                    <h3 className="font-bold text-lg mb-1">{userShow.show?.title}</h3>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="font-bold text-lg">{userShow.show?.title}</h3>
+                      {userShow.show?.release_year ? (
+                        <span className="text-sm font-medium text-zinc-500">
+                          ({userShow.show.release_year})
+                        </span>
+                      ) : null}
+                    </div>
                     <div className="flex items-center gap-3">
                       {statusFilter !== 'want_to_watch' && (
                         <div className="flex items-center gap-1 text-netflix-red">

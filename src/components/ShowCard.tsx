@@ -1,6 +1,6 @@
 import React from 'react';
-import { UserShow, AwardType } from '../types';
-import { Star, EyeOff } from 'lucide-react';
+import { UserShow } from '../types';
+import { Star, EyeOff, Trophy } from 'lucide-react';
 import { motion } from 'motion/react';
 
 interface ShowCardProps {
@@ -8,23 +8,6 @@ interface ShowCardProps {
   userShow: UserShow;
   onClick: () => void;
 }
-
-const AWARD_ICONS: Record<AwardType, string> = {
-  'Best Lead Chemistry': '💑',
-  'Best Lead Actress': '👑',
-  'Best Lead Actor': '👑',
-  'Best Soundtrack': '🎵',
-  'Made Me Cry the Most': '😭',
-  'Funniest Show': '😂',
-  'Most Addictive': '🍿',
-  'Best Slow Burn': '🕯️',
-  'Best Supporting Roles': '🎭',
-  'Best Village': '🏘️',
-  'Best Historical': '🏯',
-  'Best Cinematic': '🎥',
-  'Most Creative': '💡',
-  'Most Wholesome': '✨'
-};
 
 export default function ShowCard({ userShow, onClick }: ShowCardProps) {
   const { show, user_rating, status, is_spoiler, awards } = userShow;
@@ -53,33 +36,31 @@ export default function ShowCard({ userShow, onClick }: ShowCardProps) {
           </div>
         </div>
         
+        {/* Top Left Badges (Spoiler + Awards) */}
+        <div className="absolute top-2 left-2 flex flex-col gap-1 items-start max-w-[calc(100%-4rem)] z-10 pointer-events-none">
+          {is_spoiler && (
+            <div className="bg-netflix-red text-white p-1 rounded-md shadow-lg pointer-events-auto" title="Contains Spoilers">
+              <EyeOff size={12} />
+            </div>
+          )}
+
+          {awards && awards.length > 0 && awards.map((award) => (
+            <div
+              key={award.id}
+              className="bg-black/70 backdrop-blur-md px-2 py-1 rounded-md flex items-center gap-1 border border-zinc-800 shadow-xl pointer-events-auto max-w-full"
+              title={award.award}
+            >
+              <Trophy size={12} className="text-yellow-400 shrink-0" />
+              <span className="text-[10px] font-bold text-white truncate">{award.award}</span>
+            </div>
+          ))}
+        </div>
+
         {/* Rating Badge */}
         {status !== 'want_to_watch' && (
-          <div className="absolute top-2 right-2 bg-black/70 backdrop-blur-md px-2 py-1 rounded-md flex items-center gap-1 border border-zinc-800 shadow-xl">
+          <div className="absolute top-2 right-2 bg-black/70 backdrop-blur-md px-2 py-1 rounded-md flex items-center gap-1 border border-zinc-800 shadow-xl z-10">
             <Star size={12} className="text-netflix-red fill-netflix-red" />
             <span className="text-xs font-bold text-white">{user_rating}</span>
-          </div>
-        )}
-
-        {/* Spoiler Badge */}
-        {is_spoiler && (
-          <div className="absolute top-2 left-2 bg-netflix-red text-white p-1 rounded-md shadow-lg" title="Contains Spoilers">
-            <EyeOff size={12} />
-          </div>
-        )}
-
-        {/* Awards Badge */}
-        {awards && awards.length > 0 && (
-          <div className="absolute bottom-2 right-2 flex flex-wrap gap-1 justify-end max-w-[80%]">
-            {awards.map((award) => (
-              <span 
-                key={award.id} 
-                className="text-sm drop-shadow-lg" 
-                title={award.award.replace(/_/g, ' ')}
-              >
-                {AWARD_ICONS[award.award]}
-              </span>
-            ))}
           </div>
         )}
       </div>
@@ -88,6 +69,11 @@ export default function ShowCard({ userShow, onClick }: ShowCardProps) {
         <h3 className="font-bold text-sm sm:text-base leading-tight line-clamp-1 group-hover:text-netflix-red transition-colors">
           {show.title}
         </h3>
+        {show.release_year ? (
+          <p className="text-xs text-zinc-500 font-normal mt-0.5">
+            {show.release_year}
+          </p>
+        ) : null}
         <div className="flex items-center gap-2 mt-1">
           <span className="text-[10px] text-zinc-500 font-medium uppercase tracking-widest">
             {show.seasons} Seasons

@@ -62,6 +62,10 @@ export default function AddShowModal({ isOpen, onClose, onSuccess }: AddShowModa
       const actors = showDetails.credits?.cast?.slice(0, 10).map((a: any) => a.name) || [];
       const characters = showDetails.credits?.cast?.slice(0, 10).map((a: any) => a.character) || [];
 
+      const firstAirDate = showDetails.first_air_date || selectedShow.first_air_date;
+      const releaseYearRaw = firstAirDate ? new Date(firstAirDate).getFullYear() : null;
+      const releaseYear = (releaseYearRaw && !isNaN(releaseYearRaw)) ? releaseYearRaw : null;
+
       // 2. Upsert Show_data
       const { data: showData, error: showDataError } = await supabase
         .from('Show_data')
@@ -73,7 +77,8 @@ export default function AddShowModal({ isOpen, onClose, onSuccess }: AddShowModa
           seasons: showDetails.number_of_seasons,
           episodes: showDetails.number_of_episodes,
           actors,
-          characters
+          characters,
+          release_year: releaseYear
         }, { onConflict: 'tmdb_id' })
         .select()
         .single();

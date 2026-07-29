@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { UserShow, Actor, ShowStatus, AwardType, Award, Profile } from '../types';
-import { X, Star, Heart, Loader2, Edit2, Check, Trash2, Trophy, Eye, EyeOff, MessageSquare, Lock } from 'lucide-react';
+import { X, Star, Heart, Loader2, Edit2, Check, Trash2, Trophy, Eye, EyeOff, MessageSquare, Lock, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'react-hot-toast';
 import { insertFeedEvent } from '../lib/feed';
@@ -50,6 +50,7 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
   const [isDeleting, setIsDeleting] = useState(false);
   const [awards, setAwards] = useState<Award[]>(userShow.awards || []);
   const [isAwarding, setIsAwarding] = useState(false);
+  const [isAwardDropdownOpen, setIsAwardDropdownOpen] = useState(false);
   const [ownerProfile, setOwnerProfile] = useState<Profile | null>(null);
   const [isFriend, setIsFriend] = useState(false);
 
@@ -373,6 +374,11 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
                 </div>
                 <h1 className="serif-title text-3xl sm:text-5xl text-white mb-4 leading-tight">
                   {show.title}
+                  {show.release_year ? (
+                    <span className="text-zinc-500 text-xl sm:text-3xl font-sans font-normal ml-3">
+                      ({show.release_year})
+                    </span>
+                  ) : null}
                 </h1>
                 
                 {isFriendView && !isInMyList && (
@@ -615,29 +621,55 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
                         </div>
                       ))}
                       {!isFriendView && (
-                        <div className="relative group">
-                          <button className="flex items-center gap-2 px-3 py-1 rounded-full bg-zinc-900 border border-zinc-800 text-xs font-medium text-zinc-400 hover:text-white hover:border-zinc-600 transition-all">
-                            <Trophy size={14} />
-                            <span>Add Award</span>
+                        <div className="relative inline-block text-left">
+                          <button 
+                            type="button"
+                            onClick={() => setIsAwardDropdownOpen(!isAwardDropdownOpen)}
+                            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-xs font-medium text-zinc-300 hover:text-white hover:border-zinc-700 transition-all shadow-sm active:scale-95"
+                          >
+                            <Trophy size={14} className="text-yellow-500 shrink-0" />
+                            <span>{isAwarding ? 'Updating...' : 'Add Award'}</span>
+                            <ChevronDown size={14} className={`text-zinc-500 transition-transform duration-200 ${isAwardDropdownOpen ? 'rotate-180' : ''}`} />
                           </button>
-                          <div className="absolute bottom-full left-0 mb-2 hidden group-hover:block z-20">
-                            <div className="bg-zinc-900 border border-zinc-800 rounded-lg shadow-2xl p-2 flex flex-col gap-1 min-w-[160px]">
-                              {(Object.keys(AWARD_CONFIG) as AwardType[]).map((type) => {
-                                const existingAward = awards.find(a => a.award === type);
-                                return (
-                                  <button
-                                    key={type}
-                                    onClick={() => existingAward ? handleRemoveAward(type) : handleGiveAward(type)}
-                                    className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-all ${existingAward ? 'bg-zinc-800 text-white' : 'hover:bg-zinc-800 text-zinc-400 hover:text-white'}`}
-                                  >
-                                    <span className="text-lg">{AWARD_CONFIG[type].icon}</span>
-                                    <span className="flex-1 text-left">{AWARD_CONFIG[type].label}</span>
-                                    {existingAward && <Check size={14} className="text-netflix-red" />}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </div>
+
+                          {isAwardDropdownOpen && (
+                            <>
+                              <div 
+                                className="fixed inset-0 z-30" 
+                                onClick={() => setIsAwardDropdownOpen(false)} 
+                              />
+                              <div className="absolute left-0 bottom-full mb-2 z-40 w-60 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl overflow-hidden py-1.5 max-h-64 overflow-y-auto">
+                                <div className="px-3 py-1.5 border-b border-zinc-800 text-[10px] font-bold uppercase tracking-wider text-zinc-500">
+                                  Select Award
+                                </div>
+                                {(Object.keys(AWARD_CONFIG) as AwardType[]).map((type) => {
+                                  const existingAward = awards.find(a => a.award === type);
+                                  return (
+                                    <button
+                                      key={type}
+                                      type="button"
+                                      onClick={() => {
+                                        if (existingAward) {
+                                          handleRemoveAward(type);
+                                        } else {
+                                          handleGiveAward(type);
+                                        }
+                                      }}
+                                      className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs transition-colors text-left ${
+                                        existingAward 
+                                          ? 'bg-zinc-800/80 text-white font-medium' 
+                                          : 'text-zinc-400 hover:text-white hover:bg-zinc-800/50'
+                                      }`}
+                                    >
+                                      <span className="text-base">{AWARD_CONFIG[type].icon}</span>
+                                      <span className="flex-1 truncate">{AWARD_CONFIG[type].label}</span>
+                                      {existingAward && <Check size={14} className="text-netflix-red shrink-0" />}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </>
+                          )}
                         </div>
                       )}
                     </div>

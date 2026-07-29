@@ -20,7 +20,7 @@ export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [currentUser, setCurrentUser] = useState<Session['user'] | null>(null);
   const [authReady, setAuthReady] = useState(false);
-  const [currentView, setCurrentView] = useState<'my-list' | 'friends' | 'feed' | 'playlists' | 'playlist' | 'invite'>('feed');
+  const [currentView, setCurrentView] = useState<'my-list' | 'friends' | 'feed' | 'playlists' | 'playlist' | 'invite'>('my-list');
   const [inviteCode, setInviteCode] = useState<string | null>(null);
   const [playlistId, setPlaylistId] = useState<string | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);

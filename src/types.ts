@@ -9,6 +9,7 @@ export interface Show {
   actors: string[];
   characters: string[];
   episode_runtime?: number;
+  release_year?: number | null;
 }
 
 export interface Actor {
