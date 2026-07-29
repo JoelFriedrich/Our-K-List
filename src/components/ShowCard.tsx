@@ -1,6 +1,6 @@
 import React from 'react';
-import { UserShow } from '../types';
-import { Star } from 'lucide-react';
+import { UserShow, AwardType } from '../types';
+import { Star, EyeOff } from 'lucide-react';
 import { motion } from 'motion/react';
 
 interface ShowCardProps {
@@ -9,8 +9,25 @@ interface ShowCardProps {
   onClick: () => void;
 }
 
+const AWARD_ICONS: Record<AwardType, string> = {
+  'Best Lead Chemistry': '💑',
+  'Best Lead Actress': '👑',
+  'Best Lead Actor': '👑',
+  'Best Soundtrack': '🎵',
+  'Made Me Cry the Most': '😭',
+  'Funniest Show': '😂',
+  'Most Addictive': '🍿',
+  'Best Slow Burn': '🕯️',
+  'Best Supporting Roles': '🎭',
+  'Best Village': '🏘️',
+  'Best Historical': '🏯',
+  'Best Cinematic': '🎥',
+  'Most Creative': '💡',
+  'Most Wholesome': '✨'
+};
+
 export default function ShowCard({ userShow, onClick }: ShowCardProps) {
-  const { show, user_rating, status } = userShow;
+  const { show, user_rating, status, is_spoiler, awards } = userShow;
 
   if (!show) return null;
 
@@ -41,6 +58,28 @@ export default function ShowCard({ userShow, onClick }: ShowCardProps) {
           <div className="absolute top-2 right-2 bg-black/70 backdrop-blur-md px-2 py-1 rounded-md flex items-center gap-1 border border-zinc-800 shadow-xl">
             <Star size={12} className="text-netflix-red fill-netflix-red" />
             <span className="text-xs font-bold text-white">{user_rating}</span>
+          </div>
+        )}
+
+        {/* Spoiler Badge */}
+        {is_spoiler && (
+          <div className="absolute top-2 left-2 bg-netflix-red text-white p-1 rounded-md shadow-lg" title="Contains Spoilers">
+            <EyeOff size={12} />
+          </div>
+        )}
+
+        {/* Awards Badge */}
+        {awards && awards.length > 0 && (
+          <div className="absolute bottom-2 right-2 flex flex-wrap gap-1 justify-end max-w-[80%]">
+            {awards.map((award) => (
+              <span 
+                key={award.id} 
+                className="text-sm drop-shadow-lg" 
+                title={award.award.replace(/_/g, ' ')}
+              >
+                {AWARD_ICONS[award.award]}
+              </span>
+            ))}
           </div>
         )}
       </div>

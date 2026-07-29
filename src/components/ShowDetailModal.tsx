@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { UserShow, Actor, ShowStatus } from '../types';
-import { X, Star, Heart, Loader2, Edit2, Check, Trash2 } from 'lucide-react';
+import { UserShow, Actor, ShowStatus, AwardType, Award, Profile } from '../types';
+import { X, Star, Heart, Loader2, Edit2, Check, Trash2, Trophy, Eye, EyeOff, MessageSquare, Lock } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'react-hot-toast';
+import { insertFeedEvent } from '../lib/feed';
+import Comments from './Comments';
 
 interface ShowDetailModalProps {
   userShow: UserShow;
@@ -13,11 +15,30 @@ interface ShowDetailModalProps {
   isFriendView?: boolean;
 }
 
+const AWARD_CONFIG: Record<AwardType, { label: string; icon: string; color: string }> = {
+  'Best Lead Chemistry': { label: 'Best Lead Chemistry', icon: '💑', color: 'text-pink-400' },
+  'Best Lead Actress': { label: 'Best Lead Actress', icon: '👑', color: 'text-yellow-400' },
+  'Best Lead Actor': { label: 'Best Lead Actor', icon: '👑', color: 'text-blue-400' },
+  'Best Soundtrack': { label: 'Best Soundtrack', icon: '🎵', color: 'text-purple-400' },
+  'Made Me Cry the Most': { label: 'Made Me Cry the Most', icon: '😭', color: 'text-blue-500' },
+  'Funniest Show': { label: 'Funniest Show', icon: '😂', color: 'text-yellow-500' },
+  'Most Addictive': { label: 'Most Addictive', icon: '🍿', color: 'text-red-500' },
+  'Best Slow Burn': { label: 'Best Slow Burn', icon: '🕯️', color: 'text-orange-400' },
+  'Best Supporting Roles': { label: 'Best Supporting Roles', icon: '🎭', color: 'text-green-400' },
+  'Best Village': { label: 'Best Village', icon: '🏘️', color: 'text-emerald-400' },
+  'Best Historical': { label: 'Best Historical', icon: '🏯', color: 'text-amber-600' },
+  'Best Cinematic': { label: 'Best Cinematic', icon: '🎥', color: 'text-zinc-400' },
+  'Most Creative': { label: 'Most Creative', icon: '💡', color: 'text-cyan-400' },
+  'Most Wholesome': { label: 'Most Wholesome', icon: '✨', color: 'text-indigo-400' }
+};
+
 export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorClick, isFriendView = false }: ShowDetailModalProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [rating, setRating] = useState(userShow.user_rating);
   const [comments, setComments] = useState(userShow.comments);
   const [status, setStatus] = useState<ShowStatus>(userShow.status);
+  const [isSpoiler, setIsSpoiler] = useState(userShow.is_spoiler || false);
+  const [showSpoiler, setShowSpoiler] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [actors, setActors] = useState<Actor[]>([]);
   const [likesCount, setLikesCount] = useState(0);
@@ -27,11 +48,23 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
   const [isAddingToList, setIsAddingToList] = useState(false);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [awards, setAwards] = useState<Award[]>(userShow.awards || []);
+  const [isAwarding, setIsAwarding] = useState(false);
+  const [ownerProfile, setOwnerProfile] = useState<Profile | null>(null);
+  const [isFriend, setIsFriend] = useState(false);
 
   useEffect(() => {
     const init = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       setCurrentUserId(user?.id || null);
+
+      // Fetch owner profile
+      const { data: profileData } = await supabase
+        .from('Profiles')
+        .select('*')
+        .eq('id', userShow.user_id)
+        .single();
+      setOwnerProfile(profileData);
 
       if (user) {
         // Check if in my list
@@ -42,6 +75,19 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
           .eq('show_id', userShow.show_id)
           .maybeSingle();
         setIsInMyList(!!myShow);
+
+        // Check if friend
+        if (user.id !== userShow.user_id) {
+          const { data: friendship } = await supabase
+            .from('Friendships')
+            .select('*')
+            .eq('status', 'accepted')
+            .or(`and(user_id.eq.${user.id},friend_id.eq.${userShow.user_id}),and(user_id.eq.${userShow.user_id},friend_id.eq.${user.id})`)
+            .maybeSingle();
+          setIsFriend(!!friendship);
+        } else {
+          setIsFriend(true); // Owner is "friend" of self for commenting
+        }
       }
 
       // Fetch actors
@@ -75,7 +121,9 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
   }, [userShow.id]);
 
   const handleSave = async () => {
-    if (!currentUserId) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
     setIsSaving(true);
     try {
       const { error } = await supabase
@@ -83,7 +131,8 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
         .update({
           user_rating: rating,
           comments,
-          status
+          status,
+          is_spoiler: isSpoiler
         })
         .eq('id', userShow.id);
 
@@ -91,31 +140,19 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
 
       // Part 1 — Write feed events (silent background insert)
       if (status !== userShow.status) {
-        supabase.from('Feed_events').insert({
-          user_id: currentUserId,
-          event_type: 'status_changed',
-          show_id: userShow.show_id,
-          user_show_id: userShow.id,
-          metadata: { old_status: userShow.status, new_status: status }
-        }).then();
+        insertFeedEvent('status_changed', userShow.show_id, userShow.id, { 
+          old_status: userShow.status, 
+          new_status: status 
+        });
       }
       if (rating !== userShow.user_rating) {
-        supabase.from('Feed_events').insert({
-          user_id: currentUserId,
-          event_type: 'rated',
-          show_id: userShow.show_id,
-          user_show_id: userShow.id,
-          metadata: { rating }
-        }).then();
+        insertFeedEvent('rated', userShow.show_id, userShow.id, { rating });
       }
       if (comments !== userShow.comments && comments.trim()) {
-        supabase.from('Feed_events').insert({
-          user_id: currentUserId,
-          event_type: 'commented',
-          show_id: userShow.show_id,
-          user_show_id: userShow.id,
-          metadata: { comment: comments }
-        }).then();
+        insertFeedEvent('commented', userShow.show_id, userShow.id, { 
+          comment: comments,
+          is_spoiler: isSpoiler 
+        });
       }
 
       toast.success('Updated successfully!');
@@ -128,8 +165,61 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
     }
   };
 
+  const handleGiveAward = async (type: AwardType) => {
+    if (!currentUserId || userShow.user_id !== currentUserId) return;
+    
+    setIsAwarding(true);
+    try {
+      const { data, error } = await supabase
+        .from('Awards')
+        .upsert({
+          user_id: currentUserId,
+          show_id: userShow.show_id,
+          award: type
+        }, {
+          onConflict: 'user_id,award'
+        })
+        .select()
+        .single();
+      
+      if (error) throw error;
+      
+      setAwards([...awards, data]);
+      insertFeedEvent('gave_award', userShow.show_id, userShow.id, { award: type });
+      toast.success(`Awarded ${AWARD_CONFIG[type].label}!`);
+      onUpdate();
+    } catch (error: any) {
+      toast.error(error.message);
+    } finally {
+      setIsAwarding(false);
+    }
+  };
+
+  const handleRemoveAward = async (type: AwardType) => {
+    if (!currentUserId || userShow.user_id !== currentUserId) return;
+    
+    try {
+      const { error } = await supabase
+        .from('Awards')
+        .delete()
+        .eq('user_id', currentUserId)
+        .eq('show_id', userShow.show_id)
+        .eq('award', type);
+      
+      if (error) throw error;
+      
+      setAwards(awards.filter(a => a.award !== type));
+      toast.success('Award removed');
+      onUpdate();
+    } catch (error: any) {
+      toast.error(error.message);
+    }
+  };
+
   const handleToggleLike = async () => {
-    if (!currentUserId || userShow.user_id === currentUserId) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user || userShow.user_id === user.id) return;
+    const userId = user.id;
 
     try {
       if (isLiked) {
@@ -137,7 +227,7 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
           .from('Comment_likes')
           .delete()
           .eq('user_show_id', userShow.id)
-          .eq('user_id', currentUserId);
+          .eq('user_id', userId);
         setLikesCount(prev => prev - 1);
         setIsLiked(false);
       } else {
@@ -145,7 +235,7 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
           .from('Comment_likes')
           .insert({
             user_show_id: userShow.id,
-            user_id: currentUserId
+            user_id: userId
           });
         
         // Fetch friend's display name for metadata
@@ -155,13 +245,9 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
           .eq('id', userShow.user_id)
           .single();
 
-        supabase.from('Feed_events').insert({
-          user_id: currentUserId,
-          event_type: 'liked_comment',
-          show_id: userShow.show_id,
-          user_show_id: userShow.id,
-          metadata: { liked_user_display_name: friendProfile?.display_name || 'Friend' }
-        }).then();
+        insertFeedEvent('liked_comment', userShow.show_id, userShow.id, { 
+          liked_user_display_name: friendProfile?.display_name || 'Friend' 
+        });
 
         setLikesCount(prev => prev + 1);
         setIsLiked(true);
@@ -172,14 +258,16 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
   };
 
   const handleAddToMyList = async () => {
-    if (!currentUserId || isAddingToList) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user || isAddingToList) return;
+    const userId = user.id;
     
     setIsAddingToList(true);
     try {
       const { data: newUserShow, error } = await supabase
         .from('User_shows')
         .insert({
-          user_id: currentUserId,
+          user_id: userId,
           show_id: userShow.show_id,
           status: 'want_to_watch',
           user_rating: 0,
@@ -192,13 +280,9 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
 
       // Part 1 — Write feed events (silent background insert)
       if (newUserShow) {
-        supabase.from('Feed_events').insert({
-          user_id: currentUserId,
-          event_type: 'added_show',
-          show_id: userShow.show_id,
-          user_show_id: newUserShow.id,
-          metadata: { status: 'want_to_watch' }
-        }).then();
+        insertFeedEvent('added_show', userShow.show_id, newUserShow.id, { 
+          status: 'want_to_watch' 
+        });
       }
 
       toast.success('Added to your Want to Watch list!');
@@ -347,6 +431,30 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
                   ))}
                 </div>
               </section>
+
+              <section className="pt-10 border-t border-zinc-800">
+                {ownerProfile?.allow_comments ? (
+                  isFriend ? (
+                    <Comments 
+                      userShowId={userShow.id} 
+                      showId={userShow.show_id} 
+                      ownerId={userShow.user_id} 
+                    />
+                  ) : (
+                    <div className="bg-zinc-900/50 rounded-xl p-8 text-center border border-zinc-800">
+                      <Lock className="mx-auto text-zinc-700 mb-4" size={32} />
+                      <h3 className="text-lg font-serif italic text-zinc-500 mb-2">Discussion Restricted</h3>
+                      <p className="text-zinc-600 text-sm">Only friends can participate in this discussion.</p>
+                    </div>
+                  )
+                ) : (
+                  <div className="bg-zinc-900/50 rounded-xl p-8 text-center border border-zinc-800">
+                    <MessageSquare className="mx-auto text-zinc-700 mb-4" size={32} />
+                    <h3 className="text-lg font-serif italic text-zinc-500 mb-2">Comments Disabled</h3>
+                    <p className="text-zinc-600 text-sm">The owner has disabled comments for their list.</p>
+                  </div>
+                )}
+              </section>
             </div>
 
             <div className="space-y-6">
@@ -436,7 +544,20 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
                   </div>
 
                   <div>
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 block mb-2">Comments</label>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 block">Comments</label>
+                      {isEditing && (
+                        <button
+                          onClick={() => setIsSpoiler(!isSpoiler)}
+                          className={`flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest transition-colors ${
+                            isSpoiler ? 'text-netflix-red' : 'text-zinc-500 hover:text-zinc-400'
+                          }`}
+                        >
+                          {isSpoiler ? <EyeOff size={12} /> : <Eye size={12} />}
+                          {isSpoiler ? 'Spoiler On' : 'Mark Spoiler'}
+                        </button>
+                      )}
+                    </div>
                     {isEditing ? (
                       <textarea
                         value={comments}
@@ -445,10 +566,81 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
                         placeholder="What did you think?"
                       />
                     ) : (
-                      <p className="text-zinc-300 italic text-sm leading-relaxed">
-                        "{comments || 'No comments yet...'}"
-                      </p>
+                      <div className="relative group">
+                        {isSpoiler && !showSpoiler ? (
+                          <div 
+                            onClick={() => setShowSpoiler(true)}
+                            className="bg-zinc-800/50 backdrop-blur-md rounded-lg p-6 text-center cursor-pointer border border-zinc-700/50 hover:border-netflix-red transition-all"
+                          >
+                            <EyeOff className="mx-auto text-zinc-500 mb-2" size={24} />
+                            <p className="text-xs font-bold uppercase tracking-widest text-zinc-400">Spoiler Content</p>
+                            <p className="text-[10px] text-zinc-600 mt-1">Click to reveal</p>
+                          </div>
+                        ) : (
+                          <div className="relative">
+                            <p className="text-zinc-300 italic text-sm leading-relaxed">
+                              "{comments || 'No comments yet...'}"
+                            </p>
+                            {isSpoiler && (
+                              <span className="absolute -top-2 -right-2 bg-netflix-red text-white text-[8px] font-bold uppercase px-1.5 py-0.5 rounded shadow-lg">
+                                Spoiler
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     )}
+                  </div>
+
+                  {/* Awards Section */}
+                  <div className="pt-4 border-t border-zinc-800">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 block mb-3">Awards</label>
+                    <div className="flex flex-wrap gap-2">
+                      {awards.map((award) => (
+                        <div
+                          key={award.id}
+                          className={`flex items-center gap-1.5 px-2.5 py-1 bg-zinc-800 rounded-full border border-zinc-700 text-xs font-medium ${AWARD_CONFIG[award.award].color} group/award`}
+                          title={AWARD_CONFIG[award.award].label}
+                        >
+                          <span>{AWARD_CONFIG[award.award].icon}</span>
+                          <span className="text-zinc-300">{AWARD_CONFIG[award.award].label}</span>
+                          {!isFriendView && (
+                            <button 
+                              onClick={() => handleRemoveAward(award.award)}
+                              className="ml-1 text-zinc-500 hover:text-netflix-red transition-colors opacity-0 group-hover/award:opacity-100"
+                            >
+                              <X size={12} />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                      {!isFriendView && (
+                        <div className="relative group">
+                          <button className="flex items-center gap-2 px-3 py-1 rounded-full bg-zinc-900 border border-zinc-800 text-xs font-medium text-zinc-400 hover:text-white hover:border-zinc-600 transition-all">
+                            <Trophy size={14} />
+                            <span>Add Award</span>
+                          </button>
+                          <div className="absolute bottom-full left-0 mb-2 hidden group-hover:block z-20">
+                            <div className="bg-zinc-900 border border-zinc-800 rounded-lg shadow-2xl p-2 flex flex-col gap-1 min-w-[160px]">
+                              {(Object.keys(AWARD_CONFIG) as AwardType[]).map((type) => {
+                                const existingAward = awards.find(a => a.award === type);
+                                return (
+                                  <button
+                                    key={type}
+                                    onClick={() => existingAward ? handleRemoveAward(type) : handleGiveAward(type)}
+                                    className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-all ${existingAward ? 'bg-zinc-800 text-white' : 'hover:bg-zinc-800 text-zinc-400 hover:text-white'}`}
+                                  >
+                                    <span className="text-lg">{AWARD_CONFIG[type].icon}</span>
+                                    <span className="flex-1 text-left">{AWARD_CONFIG[type].label}</span>
+                                    {existingAward && <Check size={14} className="text-netflix-red" />}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {(comments || likesCount > 0) && (

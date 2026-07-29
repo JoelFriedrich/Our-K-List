@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { UserShow, ShowStatus, Profile } from '../types';
 import ShowCard from './ShowCard';
-import { LayoutGrid, List as ListIcon, Loader2, Heart } from 'lucide-react';
+import { LayoutGrid, List as ListIcon, Loader2, Heart, Search, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface MyListProps {
@@ -17,6 +17,8 @@ export default function MyList({ onShowClick, refreshTrigger }: MyListProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<ShowStatus>('watched');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [sortBy, setSortBy] = useState<'rating' | 'awards'>('rating');
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     const fetchMyList = async () => {
@@ -33,27 +35,77 @@ export default function MyList({ onShowClick, refreshTrigger }: MyListProps) {
       
       if (profileData) setProfile(profileData);
 
-      const { data, error } = await supabase
+      const { data: userShows, error } = await supabase
         .from('User_shows')
         .select(`
           *,
-          show:Show_data(*)
+          show:Show_data (
+            id,
+            title,
+            poster_url,
+            summary,
+            seasons,
+            episodes,
+            actors,
+            characters,
+            tmdb_id,
+            episode_runtime
+          )
         `)
         .eq('user_id', user.id)
-        .order('user_rating', { ascending: false });
+        .order('added_at', { ascending: false });
 
       if (error) {
-        console.error('Error fetching list:', error);
-      } else {
-        setUserShows(data || []);
+        console.error('My List fetch error:', error);
+        setIsLoading(false);
+        return;
       }
+
+      const { data: userAwards, error: awardsError } = await supabase
+        .from('Awards')
+        .select('*')
+        .eq('user_id', user.id);
+
+      if (awardsError) {
+        console.error('Awards fetch error:', awardsError);
+      }
+
+      if (!userShows || userShows.length === 0) {
+        console.warn('My List returned empty — user_id used:', user.id);
+      }
+      
+      const showsWithAwards = userShows?.map(us => ({
+        ...us,
+        awards: userAwards?.filter(a => a.show_id === us.show_id) ?? []
+      })) || [];
+
+      setUserShows(showsWithAwards);
       setIsLoading(false);
     };
 
     fetchMyList();
   }, [refreshTrigger]);
 
-  const filteredShows = userShows.filter(us => us.status === statusFilter);
+  const filteredShows = userShows
+    .filter(us => {
+      const statusMatch = us.status === statusFilter;
+      const query = searchQuery.toLowerCase().trim();
+      const searchMatch = !query || 
+        us.show?.title.toLowerCase().includes(query) ||
+        us.comments?.toLowerCase().includes(query) ||
+        us.show?.actors?.some(a => a.toLowerCase().includes(query));
+
+      if (sortBy === 'awards') {
+        return statusMatch && searchMatch && (us.awards?.length || 0) > 0;
+      }
+      return statusMatch && searchMatch;
+    })
+    .sort((a, b) => {
+      if (sortBy === 'awards') {
+        return (b.awards?.length || 0) - (a.awards?.length || 0);
+      }
+      return (b.user_rating || 0) - (a.user_rating || 0);
+    });
 
   return (
     <div className="space-y-10">
@@ -82,13 +134,13 @@ export default function MyList({ onShowClick, refreshTrigger }: MyListProps) {
         </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row justify-between items-center gap-6">
-        <div className="flex bg-zinc-900 p-1 rounded-lg border border-zinc-800 w-full sm:w-auto">
+      <div className="flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-4">
+        <div className="flex bg-zinc-900 p-1 rounded-lg border border-zinc-800 w-full lg:w-auto">
           {(['watched', 'watching', 'want_to_watch'] as ShowStatus[]).map((status) => (
             <button
               key={status}
               onClick={() => setStatusFilter(status)}
-              className={`flex-1 sm:flex-none px-4 py-2 text-xs font-bold uppercase tracking-wider transition-all rounded-md ${
+              className={`flex-1 lg:flex-none px-4 py-2 text-xs font-bold uppercase tracking-wider transition-all rounded-md ${
                 statusFilter === status 
                   ? 'bg-netflix-red text-white shadow-lg' 
                   : 'text-zinc-500 hover:text-zinc-300'
@@ -99,8 +151,42 @@ export default function MyList({ onShowClick, refreshTrigger }: MyListProps) {
           ))}
         </div>
 
-        <div className="flex items-center gap-4">
-          <div className="flex bg-zinc-900 p-1 rounded-lg border border-zinc-800">
+        <div className="flex flex-wrap sm:flex-nowrap items-center gap-3 w-full lg:w-auto">
+          <div className="relative flex-1 sm:w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" size={16} />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={`Search ${statusFilter.replace(/_/g, ' ')} shows...`}
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-lg pl-9 pr-8 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-700 transition-colors"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white transition-colors"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+
+          <div className="flex bg-zinc-900 p-1 rounded-lg border border-zinc-800 shrink-0">
+            <button
+              onClick={() => setSortBy('rating')}
+              className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest rounded-md transition-all ${sortBy === 'rating' ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+            >
+              Rating
+            </button>
+            <button
+              onClick={() => setSortBy('awards')}
+              className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest rounded-md transition-all ${sortBy === 'awards' ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+            >
+              Awards
+            </button>
+          </div>
+
+          <div className="flex bg-zinc-900 p-1 rounded-lg border border-zinc-800 shrink-0">
             <button
               onClick={() => setViewMode('grid')}
               className={`p-2 rounded-md transition-all ${viewMode === 'grid' ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
@@ -124,8 +210,12 @@ export default function MyList({ onShowClick, refreshTrigger }: MyListProps) {
         </div>
       ) : filteredShows.length === 0 ? (
         <div className="text-center py-24 bg-zinc-900/30 rounded-xl border border-dashed border-zinc-800">
-          <p className="text-zinc-500 font-medium mb-2">No shows in this category yet.</p>
-          <p className="text-zinc-600 text-sm">Add a show to start tracking your progress!</p>
+          <p className="text-zinc-500 font-medium mb-2">
+            {searchQuery ? `No shows matching "${searchQuery}" in ${statusFilter.replace(/_/g, ' ')}.` : 'No shows in this category yet.'}
+          </p>
+          <p className="text-zinc-600 text-sm">
+            {searchQuery ? 'Try clearing your search or switching status tabs.' : 'Add a show to start tracking your progress!'}
+          </p>
         </div>
       ) : (
         <AnimatePresence mode="wait">

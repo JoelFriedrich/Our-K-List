@@ -8,6 +8,7 @@ export interface Show {
   episodes: number;
   actors: string[];
   characters: string[];
+  episode_runtime?: number;
 }
 
 export interface Actor {
@@ -27,10 +28,12 @@ export interface UserShow {
   comments: string;
   status: ShowStatus;
   added_at: string;
+  is_spoiler: boolean;
   // Joined data
   show?: Show;
   likes_count?: number;
   is_liked?: boolean;
+  awards?: Award[];
 }
 
 export interface Profile {
@@ -38,6 +41,7 @@ export interface Profile {
   display_name: string;
   avatar_url: string;
   created_at: string;
+  allow_comments: boolean;
 }
 
 export type FriendshipStatus = 'pending' | 'accepted' | 'declined';
@@ -56,7 +60,87 @@ export interface Friendship {
 export interface CommentLike {
   id: string;
   user_id: string;
+  comment_id: string;
+  created_at: string;
+}
+
+export interface Comment {
+  id: string;
+  user_id: string;
   user_show_id: string;
+  parent_id: string | null;
+  body: string;
+  is_spoiler: boolean;
+  created_at: string;
+  // Joined data
+  Profiles?: Profile;
+  replies_count?: number;
+  likes_count?: number;
+  is_liked?: boolean;
+}
+
+export type AwardType = 
+  | 'Best Lead Chemistry'
+  | 'Best Lead Actress'
+  | 'Best Lead Actor'
+  | 'Best Soundtrack'
+  | 'Made Me Cry the Most'
+  | 'Funniest Show'
+  | 'Most Addictive'
+  | 'Best Slow Burn'
+  | 'Best Supporting Roles'
+  | 'Best Village'
+  | 'Best Historical'
+  | 'Best Cinematic'
+  | 'Most Creative'
+  | 'Most Wholesome';
+
+export interface Award {
+  id: string;
+  user_id: string;
+  show_id: string;
+  award: AwardType;
+  created_at: string;
+  // Joined data
+  Show_data?: Show;
+}
+
+export interface InviteLink {
+  id: string;
+  user_id: string;
+  code: string;
+  uses: number;
+  created_at: string;
+}
+
+export interface Playlist {
+  id: string;
+  user_id: string;
+  name: string;
+  description: string;
+  is_public: boolean;
+  created_at: string;
+  // Joined data
+  Profiles?: Profile;
+  shows_count?: number;
+  follows_count?: number;
+  is_followed?: boolean;
+}
+
+export interface PlaylistShow {
+  id: string;
+  playlist_id: string;
+  show_id: string;
+  position: number;
+  created_at: string;
+  // Joined data
+  Show_data?: Show;
+}
+
+export interface PlaylistFollow {
+  id: string;
+  user_id: string;
+  playlist_id: string;
   created_at: string;
 }
 
@@ -77,7 +161,9 @@ export interface TMDBActor {
   character: string;
 }
 
-export type FeedEventType = 'added_show' | 'status_changed' | 'commented' | 'rated' | 'liked_comment';
+export type FeedEventType = 
+  | 'added_show' | 'status_changed' | 'commented' | 'rated' | 'liked_comment'
+  | 'gave_award' | 'created_playlist' | 'followed_playlist';
 
 export interface FeedEvent {
   id: string;

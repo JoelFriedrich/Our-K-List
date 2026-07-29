@@ -15,6 +15,7 @@ export default function ProfileSettingsModal({ isOpen, onClose, onUpdate }: Prof
   const [profile, setProfile] = useState<Profile | null>(null);
   const [displayName, setDisplayName] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
+  const [allowComments, setAllowComments] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(true);
 
@@ -41,6 +42,7 @@ export default function ProfileSettingsModal({ isOpen, onClose, onUpdate }: Prof
       setProfile(data);
       setDisplayName(data.display_name || '');
       setAvatarUrl(data.avatar_url || '');
+      setAllowComments(data.allow_comments ?? true);
     }
     setIsFetching(false);
   };
@@ -58,6 +60,7 @@ export default function ProfileSettingsModal({ isOpen, onClose, onUpdate }: Prof
         .update({
           display_name: displayName,
           avatar_url: avatarUrl,
+          allow_comments: allowComments
         })
         .eq('id', user.id);
 
@@ -149,6 +152,20 @@ export default function ProfileSettingsModal({ isOpen, onClose, onUpdate }: Prof
                       />
                     </div>
                     <p className="text-[10px] text-zinc-600 uppercase tracking-wider">Link to an image for your profile picture</p>
+                  </div>
+
+                  <div className="flex items-center justify-between p-4 bg-zinc-800/50 rounded-lg border border-zinc-700">
+                    <div>
+                      <p className="text-sm font-bold">Allow Friend Comments</p>
+                      <p className="text-[10px] text-zinc-500 uppercase tracking-widest">Let friends comment on your shows</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setAllowComments(!allowComments)}
+                      className={`w-12 h-6 rounded-full transition-colors relative ${allowComments ? 'bg-netflix-red' : 'bg-zinc-700'}`}
+                    >
+                      <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${allowComments ? 'right-1' : 'left-1'}`} />
+                    </button>
                   </div>
                 </div>
 

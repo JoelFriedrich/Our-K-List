@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Profile, Friendship, UserShow, ShowStatus } from '../types';
-import { Search, UserPlus, Check, X, Loader2, Users, ChevronRight, Star, LayoutGrid, List as ListIcon } from 'lucide-react';
+import { Profile, Friendship, UserShow, ShowStatus, InviteLink } from '../types';
+import { Search, UserPlus, Check, X, Loader2, Users, ChevronRight, Star, LayoutGrid, List as ListIcon, Copy, Link as LinkIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'react-hot-toast';
 import ShowCard from './ShowCard';
@@ -25,6 +25,8 @@ export default function Friends({ onShowClick, onFriendshipUpdate, refreshTrigge
   const [isSendingRequest, setIsSendingRequest] = useState<string | null>(null);
   const [friendStatusFilter, setFriendStatusFilter] = useState<ShowStatus>('watched');
   const [friendViewMode, setFriendViewMode] = useState<'grid' | 'list'>('grid');
+  const [inviteLink, setInviteLink] = useState<InviteLink | null>(null);
+  const [isGeneratingInvite, setIsGeneratingInvite] = useState(false);
 
   useEffect(() => {
     const init = async () => {
@@ -32,6 +34,7 @@ export default function Friends({ onShowClick, onFriendshipUpdate, refreshTrigge
       if (user) {
         setCurrentUserId(user.id);
         fetchFriendships(user.id);
+        fetchOrCreateInviteLink(user.id);
       } else {
         setIsLoading(false);
       }
@@ -39,11 +42,41 @@ export default function Friends({ onShowClick, onFriendshipUpdate, refreshTrigge
     init();
   }, [refreshTrigger]);
 
-  useEffect(() => {
-    if (selectedFriend) {
-      browseFriendList(selectedFriend);
+  const fetchOrCreateInviteLink = async (uid: string) => {
+    setIsGeneratingInvite(true);
+    try {
+      const { data, error } = await supabase
+        .from('Invite_links')
+        .select('*')
+        .eq('user_id', uid)
+        .maybeSingle();
+      
+      if (data) {
+        setInviteLink(data);
+      } else {
+        const code = Math.random().toString(36).substring(2, 10);
+        const { data: newLink, error: createError } = await supabase
+          .from('Invite_links')
+          .insert({ user_id: uid, code })
+          .select()
+          .single();
+        
+        if (createError) throw createError;
+        setInviteLink(newLink);
+      }
+    } catch (error: any) {
+      console.error('Error with invite link:', error);
+    } finally {
+      setIsGeneratingInvite(false);
     }
-  }, [refreshTrigger]);
+  };
+
+  const copyInviteLink = () => {
+    if (!inviteLink) return;
+    const url = `${window.location.origin}/invite/${inviteLink.code}`;
+    navigator.clipboard.writeText(url);
+    toast.success('Invite link copied to clipboard!');
+  };
 
   const fetchFriendships = async (uid: string) => {
     setIsLoading(true);
@@ -135,7 +168,7 @@ export default function Friends({ onShowClick, onFriendshipUpdate, refreshTrigge
     setIsFetchingFriendShows(true);
     setAllFriendShows([]); // Clear previous shows
     
-    const { data, error } = await supabase
+    const { data: userShows, error: showsError } = await supabase
       .from('User_shows')
       .select(`
         *,
@@ -144,11 +177,22 @@ export default function Friends({ onShowClick, onFriendshipUpdate, refreshTrigge
       .eq('user_id', friend.id)
       .order('user_rating', { ascending: false });
 
-    if (error) {
-      console.error('Error fetching friend list:', error);
+    if (showsError) {
+      console.error('Error fetching friend list:', showsError);
       toast.error('Failed to fetch friend list');
     } else {
-      setAllFriendShows(data || []);
+      // Fetch awards separately to avoid invalid join
+      const { data: awardsData } = await supabase
+        .from('Awards')
+        .select('*')
+        .eq('user_id', friend.id);
+
+      const showsWithAwards = userShows?.map(us => ({
+        ...us,
+        awards: awardsData?.filter(a => a.show_id === us.show_id) || []
+      })) || [];
+
+      setAllFriendShows(showsWithAwards as any);
     }
     setIsFetchingFriendShows(false);
   };
@@ -184,6 +228,36 @@ export default function Friends({ onShowClick, onFriendshipUpdate, refreshTrigge
     <div className="space-y-12">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
         <div className="lg:col-span-1 space-y-10">
+          {/* Invite Section */}
+          <section className="space-y-6">
+            <h2 className="serif-title text-2xl">Invite a Friend</h2>
+            <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6 space-y-4">
+              <p className="text-xs text-zinc-500 uppercase tracking-widest font-bold">Your Personal Invite Link</p>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" size={16} />
+                  <input
+                    type="text"
+                    readOnly
+                    value={inviteLink ? `${window.location.origin}/invite/${inviteLink.code}` : 'Generating...'}
+                    className="input-field w-full pl-10 text-xs font-mono text-zinc-400 bg-black/50"
+                  />
+                </div>
+                <button
+                  onClick={copyInviteLink}
+                  disabled={!inviteLink}
+                  className="p-3 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg transition-colors group"
+                  title="Copy Link"
+                >
+                  <Copy size={18} className="group-active:scale-90 transition-transform" />
+                </button>
+              </div>
+              <p className="text-[10px] text-zinc-600 uppercase tracking-widest leading-relaxed">
+                Friends who join via this link will be automatically added to your friends list.
+              </p>
+            </div>
+          </section>
+
           {/* Search Section */}
           <section className="space-y-6">
             <h2 className="serif-title text-2xl">Find Friends</h2>

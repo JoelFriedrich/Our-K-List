@@ -5,6 +5,8 @@ import { X, Search, Plus, Loader2, Star, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'react-hot-toast';
 
+import { insertFeedEvent } from '../lib/feed';
+
 const TMDB_API_KEY = import.meta.env.VITE_TMDB_API_KEY;
 
 interface AddShowModalProps {
@@ -124,13 +126,7 @@ export default function AddShowModal({ isOpen, onClose, onSuccess }: AddShowModa
 
       // Part 1 — Write feed events (silent background insert)
       if (userShowData) {
-        supabase.from('Feed_events').insert({
-          user_id: user.id,
-          event_type: 'added_show',
-          show_id: showData.id,
-          user_show_id: userShowData.id,
-          metadata: { status }
-        }).then();
+        insertFeedEvent('added_show', showData.id, userShowData.id, { status });
       }
 
       toast.success('Added to your list!');

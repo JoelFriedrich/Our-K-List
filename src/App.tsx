@@ -6,17 +6,23 @@ import Auth from './components/Auth';
 import MyList from './components/MyList';
 import Friends from './components/Friends';
 import Feed from './components/Feed';
+import Playlists from './components/Playlists';
+import PlaylistDetail from './components/PlaylistDetail';
+import InviteLanding from './components/InviteLanding';
 import AddShowModal from './components/AddShowModal';
 import ShowDetailModal from './components/ShowDetailModal';
 import ActorModal from './components/ActorModal';
 import ProfileSettingsModal from './components/ProfileSettingsModal';
-import { Toaster } from 'react-hot-toast';
+import { Toaster, toast } from 'react-hot-toast';
 import { Session } from '@supabase/supabase-js';
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [currentView, setCurrentView] = useState<'my-list' | 'friends' | 'feed'>('feed');
+  const [currentUser, setCurrentUser] = useState<Session['user'] | null>(null);
+  const [authReady, setAuthReady] = useState(false);
+  const [currentView, setCurrentView] = useState<'my-list' | 'friends' | 'feed' | 'playlists' | 'playlist' | 'invite'>('feed');
+  const [inviteCode, setInviteCode] = useState<string | null>(null);
+  const [playlistId, setPlaylistId] = useState<string | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [selectedUserShow, setSelectedUserShow] = useState<UserShow | null>(null);
@@ -25,21 +31,86 @@ export default function App() {
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
 
   useEffect(() => {
-    // Check current session
+    // Basic routing
+    const path = window.location.pathname;
+    if (path.startsWith('/invite/')) {
+      const code = path.split('/invite/')[1];
+      setInviteCode(code);
+      setCurrentView('invite');
+    } else if (path.startsWith('/playlist/')) {
+      const id = path.split('/playlist/')[1];
+      setPlaylistId(id);
+      setCurrentView('playlist');
+    }
+
+    // Get initial session - critical for OAuth redirect users
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      setIsLoading(false);
-      if (session?.user) fetchPendingCount(session.user.id);
+      setCurrentUser(session?.user ?? null);
+      setAuthReady(true);
+      if (session?.user) {
+        fetchPendingCount(session.user.id);
+        if (inviteCode) handleInvite(inviteCode, session.user.id);
+      }
     });
 
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
-      if (session?.user) fetchPendingCount(session.user.id);
+      setCurrentUser(session?.user ?? null);
+      setAuthReady(true);
+      
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
+        if (session?.user) {
+          fetchPendingCount(session.user.id);
+          if (inviteCode) handleInvite(inviteCode, session.user.id);
+        }
+      }
+      if (event === 'SIGNED_OUT') {
+        setPendingRequestsCount(0);
+      }
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [inviteCode]);
+
+  const handleInvite = async (code: string, userId: string) => {
+    try {
+      const { data: inviteLink, error: inviteError } = await supabase
+        .from('Invite_links')
+        .select('user_id, uses')
+        .eq('code', code)
+        .single();
+      
+      if (inviteLink && inviteLink.user_id !== userId) {
+        // 1. Create accepted friend request
+        const { data: existingFriendship } = await supabase
+          .from('Friendships')
+          .select('*')
+          .or(`and(user_id.eq.${inviteLink.user_id},friend_id.eq.${userId}),and(user_id.eq.${userId},friend_id.eq.${inviteLink.user_id})`)
+          .maybeSingle();
+
+        if (!existingFriendship) {
+          await supabase.from('Friendships').insert({
+            user_id: inviteLink.user_id,
+            friend_id: userId,
+            status: 'accepted'
+          });
+          toast.success('Friend added via invite link!');
+        }
+
+        // 2. Increment uses
+        await supabase.from('Invite_links').update({ uses: inviteLink.uses + 1 }).eq('code', code);
+      }
+      
+      // 3. Clear invite code and go to feed
+      setInviteCode(null);
+      setCurrentView('feed');
+      window.history.pushState({}, '', '/');
+    } catch (err) {
+      console.error('Invite handling failed:', err);
+    }
+  };
 
   const fetchPendingCount = async (userId: string) => {
     const { count } = await supabase
@@ -97,6 +168,7 @@ export default function App() {
           comments: 'Not in your list',
           status: 'want_to_watch',
           added_at: '',
+          is_spoiler: false,
           show: showData
         });
         setSelectedActorName(null);
@@ -104,7 +176,7 @@ export default function App() {
     }
   };
 
-  if (isLoading) {
+  if (!authReady) {
     return (
       <div className="min-h-screen bg-dark-bg flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-netflix-red"></div>
@@ -112,7 +184,25 @@ export default function App() {
     );
   }
 
+  // Public playlist view
+  if (!session && currentView === 'playlist' && playlistId) {
+    return (
+      <div className="min-h-screen bg-dark-bg text-white">
+        <PlaylistDetail playlistId={playlistId} onShowClick={handleShowClick} isPublicView />
+        <Toaster position="bottom-center" />
+      </div>
+    );
+  }
+
   if (!session) {
+    if (currentView === 'invite' && inviteCode) {
+      return (
+        <>
+          <Toaster position="bottom-center" />
+          <InviteLanding code={inviteCode} onAuthSuccess={handleRefresh} />
+        </>
+      );
+    }
     return (
       <>
         <Toaster position="bottom-center" />
@@ -153,6 +243,20 @@ export default function App() {
             onFriendshipUpdate={handleRefresh}
             refreshTrigger={refreshTrigger}
           />
+        ) : currentView === 'playlists' ? (
+          <Playlists 
+            onPlaylistClick={(id) => {
+              setPlaylistId(id);
+              setCurrentView('playlist');
+            }}
+            refreshTrigger={refreshTrigger}
+          />
+        ) : currentView === 'playlist' && playlistId ? (
+          <PlaylistDetail 
+            playlistId={playlistId} 
+            onShowClick={handleShowClick}
+            onBack={() => setCurrentView('playlists')}
+          />
         ) : (
           <Feed 
             onShowClick={handleShowClick}
@@ -183,7 +287,7 @@ export default function App() {
           onClose={() => setSelectedUserShow(null)}
           onUpdate={handleRefresh}
           onActorClick={handleActorClick}
-          isFriendView={currentView === 'friends'}
+          isFriendView={currentView === 'friends' || (currentView === 'playlist' && selectedUserShow.user_id !== currentUser?.id)}
         />
       )}
 

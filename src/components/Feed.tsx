@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { FeedEvent, UserShow } from '../types';
 import { formatDistanceToNow } from 'date-fns';
-import { Loader2, RefreshCw, MessageSquare, Star, Heart, Plus, Activity } from 'lucide-react';
+import { Loader2, RefreshCw, MessageSquare, Star, Heart, Plus, Activity, Trophy, ListMusic } from 'lucide-react';
 import { motion } from 'motion/react';
 
 interface FeedProps {
@@ -18,6 +18,25 @@ export default function Feed({ onShowClick, refreshTrigger }: FeedProps) {
   const fetchFeed = async () => {
     setIsRefreshing(true);
     try {
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (!currentUser) return;
+
+      // Step 1 — get all accepted friend IDs (current user can be either side)
+      const { data: friendships } = await supabase
+        .from('Friendships')
+        .select('user_id, friend_id')
+        .eq('status', 'accepted')
+        .or(`user_id.eq.${currentUser.id},friend_id.eq.${currentUser.id}`);
+
+      // Step 2 — extract friend IDs, excluding current user
+      const friendIds = friendships?.map(f => 
+        f.user_id === currentUser.id ? f.friend_id : f.user_id
+      ) ?? [];
+
+      // Step 3 — include current user in the list to see own events too
+      const allUserIds = [currentUser.id, ...friendIds];
+
+      // Step 4 — fetch feed events for all those users
       const { data, error } = await supabase
         .from('Feed_events')
         .select(`
@@ -31,6 +50,7 @@ export default function Feed({ onShowClick, refreshTrigger }: FeedProps) {
             poster_url
           )
         `)
+        .in('user_id', allUserIds)
         .order('created_at', { ascending: false })
         .limit(50);
 
@@ -52,14 +72,27 @@ export default function Feed({ onShowClick, refreshTrigger }: FeedProps) {
     if (!event.user_show_id) return;
 
     try {
-      const { data, error } = await supabase
+      const { data: userShow, error: showError } = await supabase
         .from('User_shows')
         .select('*, show:Show_data(*)')
         .eq('id', event.user_show_id)
         .single();
 
-      if (error) throw error;
-      if (data) onShowClick(data);
+      if (showError) throw showError;
+      
+      if (userShow) {
+        // Fetch awards separately
+        const { data: awardsData } = await supabase
+          .from('Awards')
+          .select('*')
+          .eq('user_id', userShow.user_id)
+          .eq('show_id', userShow.show_id);
+        
+        onShowClick({
+          ...userShow,
+          awards: awardsData || []
+        });
+      }
     } catch (error) {
       console.error('Error fetching show details:', error);
     }
@@ -103,6 +136,28 @@ export default function Feed({ onShowClick, refreshTrigger }: FeedProps) {
             <span className="text-netflix-red font-bold">{event.metadata?.rating}</span>
           </span>
         );
+      case 'gave_award':
+        return (
+          <span>
+            <span className="font-bold text-white">{name}</span> gave a{' '}
+            <span className="text-yellow-500 font-bold uppercase tracking-tighter">{event.metadata?.award?.replace(/_/g, ' ')}</span> award to{' '}
+            <span className="font-bold text-white italic">{showTitle}</span>
+          </span>
+        );
+      case 'created_playlist':
+        return (
+          <span>
+            <span className="font-bold text-white">{name}</span> created a new playlist:{' '}
+            <span className="font-bold text-white italic">{event.metadata?.playlist_name}</span>
+          </span>
+        );
+      case 'followed_playlist':
+        return (
+          <span>
+            <span className="font-bold text-white">{name}</span> followed{' '}
+            <span className="font-bold text-white italic">{event.metadata?.playlist_name}</span>
+          </span>
+        );
       case 'liked_comment':
         return (
           <span>
@@ -122,6 +177,9 @@ export default function Feed({ onShowClick, refreshTrigger }: FeedProps) {
       case 'status_changed': return <Activity size={14} className="text-green-500" />;
       case 'commented': return <MessageSquare size={14} className="text-purple-500" />;
       case 'rated': return <Star size={14} className="text-yellow-500" />;
+      case 'gave_award': return <Trophy size={14} className="text-yellow-500" />;
+      case 'created_playlist': return <ListMusic size={14} className="text-blue-400" />;
+      case 'followed_playlist': return <Heart size={14} className="text-netflix-red" />;
       case 'liked_comment': return <Heart size={14} className="text-netflix-red" />;
       default: return null;
     }

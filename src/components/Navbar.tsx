@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Heart, LogOut, Users, Plus, Search, User, Activity } from 'lucide-react';
+import { Heart, LogOut, Users, Plus, Search, User, Activity, ListMusic } from 'lucide-react';
 import { Profile } from '../types';
 import { toast } from 'react-hot-toast';
 
 interface NavbarProps {
   onAddClick: () => void;
-  onViewChange: (view: 'my-list' | 'friends' | 'feed') => void;
+  onViewChange: (view: 'my-list' | 'friends' | 'feed' | 'playlists') => void;
   onProfileClick: () => void;
-  currentView: 'my-list' | 'friends' | 'feed';
+  currentView: string;
   refreshTrigger: number;
   pendingRequestsCount: number;
 }
@@ -74,6 +74,12 @@ export default function Navbar({ onAddClick, onViewChange, onProfileClick, curre
                   </span>
                 )}
               </button>
+              <button
+                onClick={() => onViewChange('playlists')}
+                className={`text-sm font-semibold transition-colors ${currentView === 'playlists' ? 'text-white' : 'text-zinc-400 hover:text-zinc-200'}`}
+              >
+                Playlists
+              </button>
             </div>
           </div>
 
@@ -122,7 +128,7 @@ export default function Navbar({ onAddClick, onViewChange, onProfileClick, curre
       </div>
       
       {/* Mobile Nav */}
-      <div className="md:hidden flex items-center justify-center gap-8 py-3 border-t border-zinc-900 bg-black">
+      <div className="md:hidden flex items-center justify-center gap-6 py-3 border-t border-zinc-900 bg-black">
         <button
           onClick={() => onViewChange('feed')}
           className={`flex flex-col items-center gap-1 text-[10px] uppercase tracking-widest font-bold ${currentView === 'feed' ? 'text-white' : 'text-zinc-500'}`}
@@ -148,6 +154,13 @@ export default function Navbar({ onAddClick, onViewChange, onProfileClick, curre
               {pendingRequestsCount}
             </span>
           )}
+        </button>
+        <button
+          onClick={() => onViewChange('playlists')}
+          className={`flex flex-col items-center gap-1 text-[10px] uppercase tracking-widest font-bold ${currentView === 'playlists' ? 'text-white' : 'text-zinc-500'}`}
+        >
+          <ListMusic size={18} />
+          Playlists
         </button>
       </div>
     </nav>
