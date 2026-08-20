@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Playlist } from '../types';
 import { X, Loader2, Check, Globe, Lock } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'react-hot-toast';
 import { insertFeedEvent } from '../lib/feed';
+import ModalShell from './ModalShell';
 
 interface PlaylistModalProps {
   isOpen: boolean;
@@ -82,21 +82,7 @@ export default function PlaylistModal({ isOpen, onClose, onSuccess, playlist }: 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={onClose}
-        className="absolute inset-0 bg-black/90 backdrop-blur-sm"
-      />
-      
-      <motion.div
-        initial={{ opacity: 0, scale: 0.9, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.9, y: 20 }}
-        className="relative w-full max-w-md bg-card-bg rounded-xl overflow-hidden shadow-2xl border border-zinc-800 flex flex-col"
-      >
+    <ModalShell onClose={onClose} panelClassName="max-w-md flex flex-col">
         <div className="p-6 border-b border-zinc-800 flex items-center justify-between">
           <h2 className="serif-title text-2xl">{playlist ? 'Edit Playlist' : 'New Playlist'}</h2>
           <button onClick={onClose} className="text-zinc-500 hover:text-white transition-colors">
@@ -155,7 +141,6 @@ export default function PlaylistModal({ isOpen, onClose, onSuccess, playlist }: 
             {isSaving ? <Loader2 className="animate-spin" size={20} /> : <><Check size={20} /> {playlist ? 'Update' : 'Create'} Playlist</>}
           </button>
         </form>
-      </motion.div>
-    </div>
+    </ModalShell>
   );
 }

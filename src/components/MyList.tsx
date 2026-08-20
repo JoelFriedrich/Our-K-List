@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { getCurrentUser, fetchProfile, fetchAwardsForUser, attachAwards } from '../lib/queries';
+import { formatStatus } from '../lib/utils';
 import { UserShow, ShowStatus, Profile } from '../types';
 import ShowCard from './ShowCard';
+import Avatar from './Avatar';
 import { LayoutGrid, List as ListIcon, Loader2, Heart, Search, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -23,16 +26,11 @@ export default function MyList({ onShowClick, refreshTrigger }: MyListProps) {
   useEffect(() => {
     const fetchMyList = async () => {
       setIsLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = await getCurrentUser();
       if (!user) return;
 
       // Fetch profile for personalized header
-      const { data: profileData } = await supabase
-        .from('Profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single();
-      
+      const profileData = await fetchProfile(user.id);
       if (profileData) setProfile(profileData);
 
       const { data: userShows, error } = await supabase
@@ -62,25 +60,13 @@ export default function MyList({ onShowClick, refreshTrigger }: MyListProps) {
         return;
       }
 
-      const { data: userAwards, error: awardsError } = await supabase
-        .from('Awards')
-        .select('*')
-        .eq('user_id', user.id);
-
-      if (awardsError) {
-        console.error('Awards fetch error:', awardsError);
-      }
+      const userAwards = await fetchAwardsForUser(user.id);
 
       if (!userShows || userShows.length === 0) {
         console.warn('My List returned empty — user_id used:', user.id);
       }
-      
-      const showsWithAwards = userShows?.map(us => ({
-        ...us,
-        awards: userAwards?.filter(a => a.show_id === us.show_id) ?? []
-      })) || [];
 
-      setUserShows(showsWithAwards);
+      setUserShows(attachAwards(userShows, userAwards));
       setIsLoading(false);
     };
 
@@ -112,18 +98,13 @@ export default function MyList({ onShowClick, refreshTrigger }: MyListProps) {
     <div className="space-y-10">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-zinc-800 pb-8">
         <div className="flex items-center gap-6">
-          {profile?.avatar_url ? (
-            <img 
-              src={profile.avatar_url} 
-              alt={profile.display_name} 
-              className="w-20 h-20 rounded-full border-2 border-netflix-red shadow-2xl object-cover"
-              referrerPolicy="no-referrer"
-            />
-          ) : (
-            <div className="w-20 h-20 rounded-full bg-zinc-900 flex items-center justify-center text-3xl font-serif italic border-2 border-netflix-red shadow-2xl uppercase text-zinc-500">
-              {profile?.display_name?.charAt(0) || <Heart size={32} className="text-zinc-800" />}
-            </div>
-          )}
+          <Avatar
+            src={profile?.avatar_url}
+            name={profile?.display_name}
+            fallback={profile?.display_name?.charAt(0) || <Heart size={32} className="text-zinc-800" />}
+            className="w-20 h-20 border-2 border-netflix-red shadow-2xl"
+            fallbackClassName="bg-zinc-900 text-3xl font-serif italic uppercase text-zinc-500"
+          />
           <div>
             <h2 className="serif-title text-4xl sm:text-5xl mb-1">
               {profile?.display_name || 'My'} List
@@ -147,7 +128,7 @@ export default function MyList({ onShowClick, refreshTrigger }: MyListProps) {
                   : 'text-zinc-500 hover:text-zinc-300'
               }`}
             >
-              {status.replace(/_/g, ' ')}
+              {formatStatus(status)}
             </button>
           ))}
         </div>
@@ -159,7 +140,7 @@ export default function MyList({ onShowClick, refreshTrigger }: MyListProps) {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={`Search ${statusFilter.replace(/_/g, ' ')} shows...`}
+              placeholder={`Search ${formatStatus(statusFilter)} shows...`}
               className="w-full bg-zinc-900 border border-zinc-800 rounded-lg pl-9 pr-8 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-700 transition-colors"
             />
             {searchQuery && (
@@ -212,7 +193,7 @@ export default function MyList({ onShowClick, refreshTrigger }: MyListProps) {
       ) : filteredShows.length === 0 ? (
         <div className="text-center py-24 bg-zinc-900/30 rounded-xl border border-dashed border-zinc-800">
           <p className="text-zinc-500 font-medium mb-2">
-            {searchQuery ? `No shows matching "${searchQuery}" in ${statusFilter.replace(/_/g, ' ')}.` : 'No shows in this category yet.'}
+            {searchQuery ? `No shows matching "${searchQuery}" in ${formatStatus(statusFilter)}.` : 'No shows in this category yet.'}
           </p>
           <p className="text-zinc-600 text-sm">
             {searchQuery ? 'Try clearing your search or switching status tabs.' : 'Add a show to start tracking your progress!'}
@@ -276,7 +257,7 @@ export default function MyList({ onShowClick, refreshTrigger }: MyListProps) {
                         </div>
                       )}
                       <span className={`status-badge status-${userShow.status}`}>
-                        {userShow.status.replace(/_/g, ' ')}
+                        {formatStatus(userShow.status)}
                       </span>
                     </div>
                   </div>

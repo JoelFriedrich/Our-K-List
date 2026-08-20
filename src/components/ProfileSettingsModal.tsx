@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { getCurrentUser, fetchProfile as fetchProfileQuery } from '../lib/queries';
 import { X, User, Loader2, Camera } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'motion/react';
@@ -27,18 +28,11 @@ export default function ProfileSettingsModal({ isOpen, onClose, onUpdate }: Prof
 
   const fetchProfile = async () => {
     setIsFetching(true);
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
     if (!user) return;
 
-    const { data, error } = await supabase
-      .from('Profiles')
-      .select('*')
-      .eq('id', user.id)
-      .single();
-
-    if (error) {
-      console.error('Error fetching profile:', error);
-    } else {
+    const data = await fetchProfileQuery(user.id);
+    if (data) {
       setProfile(data);
       setDisplayName(data.display_name || '');
       setAvatarUrl(data.avatar_url || '');

@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { getCurrentUser, fetchProfile, fetchAcceptedFriendIds } from '../lib/queries';
 import { Playlist, Profile } from '../types';
 import { Plus, ListMusic, Users, Globe, Loader2, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'react-hot-toast';
 import PlaylistModal from './PlaylistModal';
+import Avatar from './Avatar';
 
 interface PlaylistsProps {
   onPlaylistClick: (id: string) => void;
@@ -20,16 +22,12 @@ export default function Playlists({ onPlaylistClick, refreshTrigger }: Playlists
 
   const fetchPlaylists = async () => {
     setIsLoading(true);
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
     if (!user) return;
 
     // Fetch user profile for "My Playlists" fallback
     if (!userProfile) {
-      const { data: profile } = await supabase
-        .from('Profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single();
+      const profile = await fetchProfile(user.id);
       if (profile) setUserProfile(profile);
     }
 
@@ -51,14 +49,7 @@ export default function Playlists({ onPlaylistClick, refreshTrigger }: Playlists
         setPlaylists(data?.map(d => d.Playlists) as any || []);
       } else {
         // Friends' Playlists
-        // 1. Get accepted friend IDs
-        const { data: friendships } = await supabase
-          .from('Friendships')
-          .select('user_id, friend_id')
-          .eq('status', 'accepted')
-          .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`);
-
-        const friendIds = friendships?.map(f => f.user_id === user.id ? f.friend_id : f.user_id) || [];
+        const friendIds = await fetchAcceptedFriendIds(user.id);
 
         if (friendIds.length > 0) {
           const { data } = await supabase
@@ -165,18 +156,12 @@ export default function Playlists({ onPlaylistClick, refreshTrigger }: Playlists
 
               <div className="flex items-center justify-between pt-6 border-t border-zinc-800/50 mt-auto">
                 <div className="flex items-center gap-3">
-                  {(playlist.Profiles?.avatar_url || (activeTab === 'my' && userProfile?.avatar_url)) ? (
-                    <img
-                      src={playlist.Profiles?.avatar_url || userProfile?.avatar_url}
-                      alt={playlist.Profiles?.display_name || userProfile?.display_name}
-                      className="w-6 h-6 rounded-full object-cover"
-                      referrerPolicy="no-referrer"
-                    />
-                  ) : (
-                    <div className="w-6 h-6 rounded-full bg-zinc-800 flex items-center justify-center text-[10px] font-bold">
-                      {playlist.Profiles?.display_name?.charAt(0) || userProfile?.display_name?.charAt(0) || 'U'}
-                    </div>
-                  )}
+                  <Avatar
+                    src={playlist.Profiles?.avatar_url || (activeTab === 'my' ? userProfile?.avatar_url : undefined)}
+                    name={playlist.Profiles?.display_name || userProfile?.display_name}
+                    className="w-6 h-6"
+                    fallbackClassName="text-[10px] font-bold"
+                  />
                   <span className="text-xs text-zinc-400 font-medium">{playlist.Profiles?.display_name || userProfile?.display_name}</span>
                 </div>
                 <div className="flex items-center gap-4 text-[10px] font-bold uppercase tracking-widest text-zinc-600">

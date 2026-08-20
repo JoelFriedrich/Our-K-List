@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { TMDBShow, TMDBActor, ShowStatus } from '../types';
-import { X, Search, Plus, Loader2, Star, Check } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { formatStatus } from '../lib/utils';
+import { X, Search, Plus, Loader2, Check } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
 import { insertFeedEvent } from '../lib/feed';
+import ModalShell from './ModalShell';
+import RatingInput from './RatingInput';
 
 const TMDB_API_KEY = import.meta.env.VITE_TMDB_API_KEY;
 
@@ -157,21 +159,7 @@ export default function AddShowModal({ isOpen, onClose, onSuccess }: AddShowModa
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={handleClose}
-        className="absolute inset-0 bg-black/90 backdrop-blur-sm"
-      />
-      
-      <motion.div
-        initial={{ opacity: 0, scale: 0.9, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.9, y: 20 }}
-        className="relative w-full max-w-2xl bg-card-bg rounded-xl overflow-hidden shadow-2xl border border-zinc-800 flex flex-col max-h-[80vh]"
-      >
+    <ModalShell onClose={handleClose} panelClassName="max-w-2xl flex flex-col max-h-[80vh]">
         <div className="p-6 border-b border-zinc-800 flex items-center justify-between">
           <h2 className="serif-title text-2xl">Add New Show</h2>
           <button onClick={handleClose} className="text-zinc-500 hover:text-white transition-colors">
@@ -259,7 +247,7 @@ export default function AddShowModal({ isOpen, onClose, onSuccess }: AddShowModa
                               : 'border-zinc-700 text-zinc-500 hover:border-zinc-500'
                           }`}
                         >
-                          {s.replace(/_/g, ' ')}
+                          {formatStatus(s)}
                         </button>
                       ))}
                     </div>
@@ -268,32 +256,7 @@ export default function AddShowModal({ isOpen, onClose, onSuccess }: AddShowModa
                   {status !== 'want_to_watch' && (
                     <div className="space-y-2">
                       <label className="text-xs font-bold uppercase tracking-widest text-zinc-500">Rating</label>
-                      <div className="flex items-center gap-4">
-                        <input
-                          type="range"
-                          min="0"
-                          max="10"
-                          step="0.1"
-                          value={rating}
-                          onChange={(e) => setRating(parseFloat(e.target.value))}
-                          className="flex-1 accent-netflix-red"
-                        />
-                        <div className="flex items-center gap-2 bg-zinc-800 px-3 py-1 rounded border border-zinc-700">
-                          <Star size={14} className="text-netflix-red fill-netflix-red" />
-                          <input
-                            type="number"
-                            min="0"
-                            max="10"
-                            step="0.1"
-                            value={rating}
-                            onChange={(e) => {
-                              const val = parseFloat(e.target.value);
-                              if (!isNaN(val)) setRating(Math.min(10, Math.max(0, val)));
-                            }}
-                            className="bg-transparent border-none text-white w-12 text-sm font-serif italic focus:ring-0 p-0"
-                          />
-                        </div>
-                      </div>
+                      <RatingInput value={rating} onChange={setRating} />
                     </div>
                   )}
                 </div>
@@ -319,7 +282,6 @@ export default function AddShowModal({ isOpen, onClose, onSuccess }: AddShowModa
             </div>
           )}
         </div>
-      </motion.div>
-    </div>
+    </ModalShell>
   );
 }

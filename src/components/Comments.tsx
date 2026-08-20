@@ -8,6 +8,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'react-hot-toast';
 import { insertFeedEvent } from '../lib/feed';
+import Avatar from './Avatar';
 
 interface CommentsProps {
   userShowId: string;
@@ -188,18 +189,12 @@ export default function Comments({ userShowId, showId, ownerId }: CommentsProps)
       <div key={comment.id} className={`space-y-4 ${depth > 0 ? 'ml-8 border-l border-zinc-800 pl-4' : ''}`}>
         <div className="group">
           <div className="flex items-start gap-3">
-            {comment.Profiles?.avatar_url ? (
-              <img
-                src={comment.Profiles.avatar_url}
-                alt={comment.Profiles.display_name}
-                className="w-8 h-8 rounded-full object-cover"
-                referrerPolicy="no-referrer"
-              />
-            ) : (
-              <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-[10px] font-bold">
-                {comment.Profiles?.display_name?.charAt(0) || 'U'}
-              </div>
-            )}
+            <Avatar
+              src={comment.Profiles?.avatar_url}
+              name={comment.Profiles?.display_name}
+              className="w-8 h-8"
+              fallbackClassName="text-[10px] font-bold"
+            />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-xs font-bold text-white">{comment.Profiles?.display_name}</span>
