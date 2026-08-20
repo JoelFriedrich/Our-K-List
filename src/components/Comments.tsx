@@ -8,6 +8,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'react-hot-toast';
 import { insertFeedEvent } from '../lib/feed';
+import { reportError } from '../lib/errors';
 
 interface CommentsProps {
   userShowId: string;
@@ -25,6 +26,7 @@ export default function Comments({ userShowId, showId, ownerId }: CommentsProps)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [expandedThreads, setExpandedThreads] = useState<Set<string>>(new Set());
   const [revealedSpoilers, setRevealedSpoilers] = useState<Set<string>>(new Set());
+  const [likesLoadError, setLikesLoadError] = useState(false);
 
   const fetchComments = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -44,10 +46,14 @@ export default function Comments({ userShowId, showId, ownerId }: CommentsProps)
 
       // Fetch likes for current user
       if (user) {
-        const { data: likes } = await supabase
+        const { data: likes, error: likesError } = await supabase
           .from('Comment_likes')
           .select('comment_id')
           .eq('user_id', user.id);
+        if (likesError) {
+          setLikesLoadError(true);
+          reportError('Comment likes fetch', likesError, 'Comments loaded, but likes could not be loaded.');
+        }
         
         const likedIds = new Set(likes?.map(l => l.comment_id));
         
@@ -59,8 +65,8 @@ export default function Comments({ userShowId, showId, ownerId }: CommentsProps)
       } else {
         setComments(data || []);
       }
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      reportError('Comments fetch', error);
     } finally {
       setIsLoading(false);
     }
@@ -101,15 +107,16 @@ export default function Comments({ userShowId, showId, ownerId }: CommentsProps)
       
       // Feed event
       if (!replyTo) {
-        insertFeedEvent('commented', showId, userShowId, { 
+        const feedResult = await insertFeedEvent('commented', showId, userShowId, {
           comment: newComment,
           is_spoiler: isSpoiler 
         });
+        if (!feedResult.ok) toast.error('Comment posted, but the activity was not posted to the feed.');
       }
 
       toast.success(replyTo ? 'Reply posted!' : 'Comment posted!');
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      reportError('Comment submission', error);
     } finally {
       setIsSubmitting(false);
     }
@@ -120,11 +127,12 @@ export default function Comments({ userShowId, showId, ownerId }: CommentsProps)
 
     try {
       if (comment.is_liked) {
-        await supabase
+        const { error } = await supabase
           .from('Comment_likes')
           .delete()
           .eq('comment_id', comment.id)
           .eq('user_id', currentUserId);
+        if (error) throw error;
         
         setComments(comments.map(c => 
           c.id === comment.id 
@@ -132,12 +140,13 @@ export default function Comments({ userShowId, showId, ownerId }: CommentsProps)
             : c
         ));
       } else {
-        await supabase
+        const { error } = await supabase
           .from('Comment_likes')
           .insert({
             comment_id: comment.id,
             user_id: currentUserId
           });
+        if (error) throw error;
         
         setComments(comments.map(c => 
           c.id === comment.id 
@@ -145,8 +154,8 @@ export default function Comments({ userShowId, showId, ownerId }: CommentsProps)
             : c
         ));
       }
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      reportError('Comment like update', error);
     }
   };
 
@@ -160,8 +169,8 @@ export default function Comments({ userShowId, showId, ownerId }: CommentsProps)
       if (error) throw error;
       setComments(comments.filter(c => c.id !== id));
       toast.success('Comment deleted');
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      reportError('Comment deletion', error);
     }
   };
 
@@ -292,6 +301,11 @@ export default function Comments({ userShowId, showId, ownerId }: CommentsProps)
 
   return (
     <div className="space-y-8">
+      {likesLoadError && (
+        <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg px-4 py-3 text-sm text-yellow-200">
+          Comments loaded, but likes are temporarily unavailable.
+        </div>
+      )}
       <div className="flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-zinc-500">
         <MessageSquare size={18} />
         Discussion ({comments.length})

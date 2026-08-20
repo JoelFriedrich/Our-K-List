@@ -5,6 +5,7 @@ import { Search, UserPlus, Check, X, Loader2, Users, ChevronRight, Star, LayoutG
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'react-hot-toast';
 import ShowCard from './ShowCard';
+import { reportError } from '../lib/errors';
 
 interface FriendsProps {
   onShowClick: (userShow: UserShow) => void;
@@ -27,6 +28,8 @@ export default function Friends({ onShowClick, onFriendshipUpdate, refreshTrigge
   const [friendViewMode, setFriendViewMode] = useState<'grid' | 'list'>('grid');
   const [inviteLink, setInviteLink] = useState<InviteLink | null>(null);
   const [isGeneratingInvite, setIsGeneratingInvite] = useState(false);
+  const [inviteLinkError, setInviteLinkError] = useState(false);
+  const [awardsLoadError, setAwardsLoadError] = useState(false);
 
   useEffect(() => {
     const init = async () => {
@@ -44,12 +47,15 @@ export default function Friends({ onShowClick, onFriendshipUpdate, refreshTrigge
 
   const fetchOrCreateInviteLink = async (uid: string) => {
     setIsGeneratingInvite(true);
+    setInviteLinkError(false);
     try {
       const { data, error } = await supabase
         .from('Invite_links')
         .select('*')
         .eq('user_id', uid)
         .maybeSingle();
+
+      if (error) throw error;
       
       if (data) {
         setInviteLink(data);
@@ -64,18 +70,23 @@ export default function Friends({ onShowClick, onFriendshipUpdate, refreshTrigge
         if (createError) throw createError;
         setInviteLink(newLink);
       }
-    } catch (error: any) {
-      console.error('Error with invite link:', error);
+    } catch (error) {
+      setInviteLinkError(true);
+      reportError('Invite link fetch', error, 'We could not generate your invite link.');
     } finally {
       setIsGeneratingInvite(false);
     }
   };
 
-  const copyInviteLink = () => {
+  const copyInviteLink = async () => {
     if (!inviteLink) return;
     const url = `${window.location.origin}/invite/${inviteLink.code}`;
-    navigator.clipboard.writeText(url);
-    toast.success('Invite link copied to clipboard!');
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success('Invite link copied to clipboard!');
+    } catch (error) {
+      reportError('Invite link copy', error, 'Could not copy the link. Copy the URL from the field manually.');
+    }
   };
 
   const fetchFriendships = async (uid: string) => {
@@ -91,8 +102,7 @@ export default function Friends({ onShowClick, onFriendshipUpdate, refreshTrigge
       .neq('status', 'declined');
 
     if (error) {
-      console.error('Error fetching friendships:', error);
-      toast.error('Failed to load friends');
+      reportError('Friendships fetch', error, 'Failed to load friends.');
     } else {
       setFriendships(data || []);
     }
@@ -166,6 +176,7 @@ export default function Friends({ onShowClick, onFriendshipUpdate, refreshTrigge
   const browseFriendList = async (friend: Profile) => {
     setSelectedFriend(friend);
     setIsFetchingFriendShows(true);
+    setAwardsLoadError(false);
     setAllFriendShows([]); // Clear previous shows
     
     const { data: userShows, error: showsError } = await supabase
@@ -178,14 +189,17 @@ export default function Friends({ onShowClick, onFriendshipUpdate, refreshTrigge
       .order('user_rating', { ascending: false });
 
     if (showsError) {
-      console.error('Error fetching friend list:', showsError);
-      toast.error('Failed to fetch friend list');
+      reportError('Friend list fetch', showsError, 'Failed to fetch friend list.');
     } else {
       // Fetch awards separately to avoid invalid join
-      const { data: awardsData } = await supabase
+      const { data: awardsData, error: awardsError } = await supabase
         .from('Awards')
         .select('*')
         .eq('user_id', friend.id);
+      setAwardsLoadError(!!awardsError);
+      if (awardsError) {
+        reportError('Friend awards fetch', awardsError, 'Friend shows loaded, but awards are temporarily unavailable.');
+      }
 
       const showsWithAwards = userShows?.map(us => ({
         ...us,
@@ -255,6 +269,9 @@ export default function Friends({ onShowClick, onFriendshipUpdate, refreshTrigge
               <p className="text-[10px] text-zinc-600 uppercase tracking-widest leading-relaxed">
                 Friends who join via this link will be automatically added to your friends list.
               </p>
+              {inviteLinkError && (
+                <p className="text-xs text-red-300">Invite link unavailable. Please try again later.</p>
+              )}
             </div>
           </section>
 
@@ -446,6 +463,11 @@ export default function Friends({ onShowClick, onFriendshipUpdate, refreshTrigge
                 exit={{ opacity: 0, x: -20 }}
                 className="space-y-8"
               >
+                {awardsLoadError && (
+                  <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg px-4 py-3 text-sm text-yellow-200">
+                    Friend shows loaded, but awards are temporarily unavailable.
+                  </div>
+                )}
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-6 pb-8 border-b border-zinc-800">
                   <div className="flex items-center gap-6">
                     {selectedFriend.avatar_url ? (

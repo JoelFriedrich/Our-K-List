@@ -3,6 +3,7 @@ import { X, Loader2, Tv, User } from 'lucide-react';
 import { Actor } from '../types';
 import { supabase } from '../lib/supabase';
 import { motion } from 'motion/react';
+import { isNotFoundError, reportError } from '../lib/errors';
 
 interface ActorModalProps {
   actorName: string;
@@ -13,10 +14,13 @@ interface ActorModalProps {
 export default function ActorModal({ actorName, onClose, onShowClick }: ActorModalProps) {
   const [actor, setActor] = useState<Actor | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     const fetchActor = async () => {
       setIsLoading(true);
+      setActor(null);
+      setLoadError(false);
       try {
         const { data, error } = await supabase
           .from('Actor_data')
@@ -27,7 +31,10 @@ export default function ActorModal({ actorName, onClose, onShowClick }: ActorMod
         if (error) throw error;
         setActor(data);
       } catch (error) {
-        console.error('Error fetching actor:', error);
+        if (!isNotFoundError(error)) {
+          setLoadError(true);
+          reportError('Actor fetch', error);
+        }
       } finally {
         setIsLoading(false);
       }
@@ -113,6 +120,10 @@ export default function ActorModal({ actorName, onClose, onShowClick }: ActorMod
                 Close
               </button>
             </>
+          ) : loadError ? (
+            <div className="text-center text-zinc-400 py-12 text-sm">
+              We could not load this actor. Please try again.
+            </div>
           ) : (
             <div className="text-zinc-500 py-12 text-sm font-medium">Actor not found.</div>
           )}

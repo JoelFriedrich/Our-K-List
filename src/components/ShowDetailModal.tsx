@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'react-hot-toast';
 import { insertFeedEvent } from '../lib/feed';
 import Comments from './Comments';
+import { logError, reportError } from '../lib/errors';
 
 interface ShowDetailModalProps {
   userShow: UserShow;
@@ -54,38 +55,49 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
   const [isAwardDropdownOpen, setIsAwardDropdownOpen] = useState(false);
   const [ownerProfile, setOwnerProfile] = useState<Profile | null>(null);
   const [isFriend, setIsFriend] = useState(false);
+  const [initError, setInitError] = useState(false);
 
   useEffect(() => {
     const init = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      setInitError(false);
+      const markInitError = (context: string, error: unknown) => {
+        logError(context, error);
+        setInitError(true);
+      };
+
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError) markInitError('Show details auth lookup', authError);
       setCurrentUserId(user?.id || null);
 
       // Fetch owner profile
-      const { data: profileData } = await supabase
+      const { data: profileData, error: profileError } = await supabase
         .from('Profiles')
         .select('*')
         .eq('id', userShow.user_id)
         .single();
+      if (profileError) markInitError('Show owner profile fetch', profileError);
       setOwnerProfile(profileData);
 
       if (user) {
         // Check if in my list
-        const { data: myShow } = await supabase
+        const { data: myShow, error: myShowError } = await supabase
           .from('User_shows')
           .select('id')
           .eq('user_id', user.id)
           .eq('show_id', userShow.show_id)
           .maybeSingle();
+        if (myShowError) markInitError('Show list membership check', myShowError);
         setIsInMyList(!!myShow);
 
         // Check if friend
         if (user.id !== userShow.user_id) {
-          const { data: friendship } = await supabase
+          const { data: friendship, error: friendshipError } = await supabase
             .from('Friendships')
             .select('*')
             .eq('status', 'accepted')
             .or(`and(user_id.eq.${user.id},friend_id.eq.${userShow.user_id}),and(user_id.eq.${userShow.user_id},friend_id.eq.${user.id})`)
             .maybeSingle();
+          if (friendshipError) markInitError('Show friendship check', friendshipError);
           setIsFriend(!!friendship);
         } else {
           setIsFriend(true); // Owner is "friend" of self for commenting
@@ -94,27 +106,30 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
 
       // Fetch actors
       if (userShow.show?.actors) {
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from('Actor_data')
           .select('*')
           .in('actor_name', userShow.show.actors);
+        if (error) markInitError('Show actors fetch', error);
         if (data) setActors(data);
       }
 
       // Fetch likes
-      const { count } = await supabase
+      const { count, error: likesError } = await supabase
         .from('Comment_likes')
         .select('*', { count: 'exact', head: true })
         .eq('user_show_id', userShow.id);
+      if (likesError) markInitError('Show likes count fetch', likesError);
       setLikesCount(count || 0);
 
       if (user) {
-        const { data: likeData } = await supabase
+        const { data: likeData, error: likeError } = await supabase
           .from('Comment_likes')
           .select('*')
           .eq('user_show_id', userShow.id)
           .eq('user_id', user.id)
-          .single();
+          .maybeSingle();
+        if (likeError) markInitError('Show current like fetch', likeError);
         setIsLiked(!!likeData);
       }
     };
@@ -142,26 +157,29 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
 
       // Part 1 — Write feed events (silent background insert)
       if (status !== userShow.status) {
-        insertFeedEvent('status_changed', userShow.show_id, userShow.id, { 
+        const feedResult = await insertFeedEvent('status_changed', userShow.show_id, userShow.id, {
           old_status: userShow.status, 
           new_status: status 
         });
+        if (!feedResult.ok) toast.error('Show updated, but the activity was not posted to the feed.');
       }
       if (rating !== userShow.user_rating) {
-        insertFeedEvent('rated', userShow.show_id, userShow.id, { rating });
+        const feedResult = await insertFeedEvent('rated', userShow.show_id, userShow.id, { rating });
+        if (!feedResult.ok) toast.error('Show updated, but the activity was not posted to the feed.');
       }
       if (comments !== userShow.comments && comments.trim()) {
-        insertFeedEvent('commented', userShow.show_id, userShow.id, { 
+        const feedResult = await insertFeedEvent('commented', userShow.show_id, userShow.id, {
           comment: comments,
           is_spoiler: isSpoiler 
         });
+        if (!feedResult.ok) toast.error('Show updated, but the activity was not posted to the feed.');
       }
 
       toast.success('Updated successfully!');
       setIsEditing(false);
       onUpdate();
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      reportError('Show update', error);
     } finally {
       setIsSaving(false);
     }
@@ -187,11 +205,12 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
       if (error) throw error;
       
       setAwards([...awards, data]);
-      insertFeedEvent('gave_award', userShow.show_id, userShow.id, { award: type });
+      const feedResult = await insertFeedEvent('gave_award', userShow.show_id, userShow.id, { award: type });
+      if (!feedResult.ok) toast.error('Award saved, but the activity was not posted to the feed.');
       toast.success(`Awarded ${AWARD_CONFIG[type].label}!`);
       onUpdate();
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      reportError('Give award', error);
     } finally {
       setIsAwarding(false);
     }
@@ -213,8 +232,8 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
       setAwards(awards.filter(a => a.award !== type));
       toast.success('Award removed');
       onUpdate();
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      reportError('Remove award', error);
     }
   };
 
@@ -225,37 +244,41 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
 
     try {
       if (isLiked) {
-        await supabase
+        const { error } = await supabase
           .from('Comment_likes')
           .delete()
           .eq('user_show_id', userShow.id)
           .eq('user_id', userId);
+        if (error) throw error;
         setLikesCount(prev => prev - 1);
         setIsLiked(false);
       } else {
-        await supabase
+        const { error } = await supabase
           .from('Comment_likes')
           .insert({
             user_show_id: userShow.id,
             user_id: userId
           });
+        if (error) throw error;
         
         // Fetch friend's display name for metadata
-        const { data: friendProfile } = await supabase
+        const { data: friendProfile, error: profileError } = await supabase
           .from('Profiles')
           .select('display_name')
           .eq('id', userShow.user_id)
           .single();
+        if (profileError) throw profileError;
 
-        insertFeedEvent('liked_comment', userShow.show_id, userShow.id, { 
+        const feedResult = await insertFeedEvent('liked_comment', userShow.show_id, userShow.id, {
           liked_user_display_name: friendProfile?.display_name || 'Friend' 
         });
+        if (!feedResult.ok) toast.error('Like saved, but the activity was not posted to the feed.');
 
         setLikesCount(prev => prev + 1);
         setIsLiked(true);
       }
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      reportError('Show like update', error);
     }
   };
 
@@ -282,16 +305,17 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
 
       // Part 1 — Write feed events (silent background insert)
       if (newUserShow) {
-        insertFeedEvent('added_show', userShow.show_id, newUserShow.id, { 
+        const feedResult = await insertFeedEvent('added_show', userShow.show_id, newUserShow.id, {
           status: 'want_to_watch' 
         });
+        if (!feedResult.ok) toast.error('Show added, but the activity was not posted to the feed.');
       }
 
       toast.success('Added to your Want to Watch list!');
       setIsInMyList(true);
       onUpdate();
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      reportError('Add show to list', error);
     } finally {
       setIsAddingToList(false);
     }
@@ -314,8 +338,8 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
       toast.success('Removed from list');
       onClose();
       onUpdate();
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      reportError('Remove show from list', error);
     } finally {
       setIsDeleting(false);
     }
@@ -348,6 +372,11 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
         </button>
 
         <div className="overflow-y-auto flex-1">
+          {initError && (
+            <div className="mx-6 mt-6 bg-yellow-500/10 border border-yellow-500/20 rounded-lg px-4 py-3 text-sm text-yellow-200">
+              Some show details could not be loaded. Actions may be temporarily unavailable.
+            </div>
+          )}
           <div className="relative h-64 sm:h-96">
             <img
               src={show.poster_url}

@@ -5,6 +5,7 @@ import { X, Loader2, Check, Globe, Lock } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'react-hot-toast';
 import { insertFeedEvent } from '../lib/feed';
+import { reportError } from '../lib/errors';
 
 interface PlaylistModalProps {
   isOpen: boolean;
@@ -67,13 +68,14 @@ export default function PlaylistModal({ isOpen, onClose, onSuccess, playlist }: 
         if (error) throw error;
         
         // Feed event
-        insertFeedEvent('created_playlist', '', '', { playlist_name: name });
+        const feedResult = await insertFeedEvent('created_playlist', '', '', { playlist_name: name });
+        if (!feedResult.ok) toast.error('Playlist created, but the activity was not posted to the feed.');
         
         toast.success('Playlist created!');
       }
       onSuccess();
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      reportError('Playlist save', error);
     } finally {
       setIsSaving(false);
     }
