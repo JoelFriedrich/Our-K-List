@@ -15,6 +15,7 @@ import ActorModal from './components/ActorModal';
 import ProfileSettingsModal from './components/ProfileSettingsModal';
 import { Toaster, toast } from 'react-hot-toast';
 import { Session } from '@supabase/supabase-js';
+import { isInviteCode, isUuid } from './lib/security';
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -35,12 +36,16 @@ export default function App() {
     const path = window.location.pathname;
     if (path.startsWith('/invite/')) {
       const code = path.split('/invite/')[1];
-      setInviteCode(code);
-      setCurrentView('invite');
+      if (isInviteCode(code)) {
+        setInviteCode(code);
+        setCurrentView('invite');
+      }
     } else if (path.startsWith('/playlist/')) {
       const id = path.split('/playlist/')[1];
-      setPlaylistId(id);
-      setCurrentView('playlist');
+      if (isUuid(id)) {
+        setPlaylistId(id);
+        setCurrentView('playlist');
+      }
     }
 
     // Get initial session - critical for OAuth redirect users
@@ -75,6 +80,7 @@ export default function App() {
   }, [inviteCode]);
 
   const handleInvite = async (code: string, userId: string) => {
+    if (!isInviteCode(code)) return;
     try {
       const { data: inviteLink, error: inviteError } = await supabase
         .from('Invite_links')

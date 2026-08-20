@@ -9,6 +9,7 @@ import { motion, AnimatePresence, Reorder } from 'motion/react';
 import { toast } from 'react-hot-toast';
 import PlaylistModal from './PlaylistModal';
 import { insertFeedEvent } from '../lib/feed';
+import { sanitizeSearchTerm } from '../lib/security';
 
 interface PlaylistDetailProps {
   playlistId: string;
@@ -37,13 +38,18 @@ export default function PlaylistDetail({ playlistId, onShowClick, onBack, isPubl
     setCurrentUserId(user?.id || null);
 
     try {
-      // Fetch playlist
-      const { data: playlistData, error: playlistError } = await supabase
+      // Fetch playlist. Unauthenticated visitors may only read public playlists.
+      let playlistQuery = supabase
         .from('Playlists')
         .select('*, Profiles!Playlists_user_id_fkey(*)')
-        .eq('id', playlistId)
-        .single();
-      
+        .eq('id', playlistId);
+
+      if (!user) {
+        playlistQuery = playlistQuery.eq('is_public', true);
+      }
+
+      const { data: playlistData, error: playlistError } = await playlistQuery.single();
+
       if (playlistError) throw playlistError;
       setPlaylist(playlistData);
 
@@ -84,13 +90,19 @@ export default function PlaylistDetail({ playlistId, onShowClick, onBack, isPubl
       setUserShows([]);
       return;
     }
+    const term = sanitizeSearchTerm(searchQuery);
+    if (!term) {
+      setUserShows([]);
+      return;
+    }
+
     setIsSearching(true);
     try {
       const { data } = await supabase
         .from('User_shows')
         .select('*, Show_data(*)')
         .eq('user_id', currentUserId)
-        .ilike('Show_data.title', `%${searchQuery}%`)
+        .ilike('Show_data.title', `%${term}%`)
         .limit(10);
       
       setUserShows(data?.map(d => ({ ...d, show: d.Show_data })) as any || []);
@@ -109,7 +121,7 @@ export default function PlaylistDetail({ playlistId, onShowClick, onBack, isPubl
   }, [searchQuery]);
 
   const addShowToPlaylist = async (showId: string) => {
-    if (!playlist) return;
+    if (!playlist || playlist.user_id !== currentUserId) return;
     try {
       const position = playlistShows.length;
       const { data, error } = await supabase
@@ -133,6 +145,7 @@ export default function PlaylistDetail({ playlistId, onShowClick, onBack, isPubl
   };
 
   const removeShowFromPlaylist = async (id: string) => {
+    if (!playlist || playlist.user_id !== currentUserId) return;
     try {
       const { error } = await supabase
         .from('Playlist_shows')
@@ -148,6 +161,7 @@ export default function PlaylistDetail({ playlistId, onShowClick, onBack, isPubl
   };
 
   const handleReorder = async (newOrder: PlaylistShow[]) => {
+    if (!playlist || playlist.user_id !== currentUserId) return;
     setPlaylistShows(newOrder);
     // Update positions in background
     const updates = newOrder.map((s, index) => ({
@@ -237,13 +251,15 @@ export default function PlaylistDetail({ playlistId, onShowClick, onBack, isPubl
   };
 
   const handleDelete = async () => {
+    if (!playlist || playlist.user_id !== currentUserId) return;
     if (!window.confirm('Are you sure you want to delete this playlist?')) return;
     setIsDeleting(true);
     try {
       const { error } = await supabase
         .from('Playlists')
         .delete()
-        .eq('id', playlistId);
+        .eq('id', playlistId)
+        .eq('user_id', currentUserId);
       
       if (error) throw error;
       toast.success('Playlist deleted');

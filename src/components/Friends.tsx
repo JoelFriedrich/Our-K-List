@@ -5,6 +5,7 @@ import { Search, UserPlus, Check, X, Loader2, Users, ChevronRight, Star, LayoutG
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'react-hot-toast';
 import ShowCard from './ShowCard';
+import { generateInviteCode, isUuid, sanitizeSearchTerm } from '../lib/security';
 
 interface FriendsProps {
   onShowClick: (userShow: UserShow) => void;
@@ -54,7 +55,7 @@ export default function Friends({ onShowClick, onFriendshipUpdate, refreshTrigge
       if (data) {
         setInviteLink(data);
       } else {
-        const code = Math.random().toString(36).substring(2, 10);
+        const code = generateInviteCode();
         const { data: newLink, error: createError } = await supabase
           .from('Invite_links')
           .insert({ user_id: uid, code })
@@ -103,16 +104,22 @@ export default function Friends({ onShowClick, onFriendshipUpdate, refreshTrigge
     e.preventDefault();
     if (!searchQuery.trim() || !currentUserId) return;
 
+    const term = sanitizeSearchTerm(searchQuery);
+    if (!term) {
+      setSearchResults([]);
+      return;
+    }
+
     setIsSearching(true);
-    
+
     // Get all current friendship IDs to exclude them from search
     const existingFriendIds = friendships.flatMap(f => [f.user_id, f.friend_id]);
-    const excludeIds = Array.from(new Set([...existingFriendIds, currentUserId]));
+    const excludeIds = Array.from(new Set([...existingFriendIds, currentUserId])).filter(isUuid);
 
     const { data, error } = await supabase
       .from('Profiles')
       .select('*')
-      .ilike('display_name', `%${searchQuery}%`)
+      .ilike('display_name', `%${term}%`)
       .not('id', 'in', `(${excludeIds.join(',')})`)
       .limit(10);
 
@@ -152,7 +159,8 @@ export default function Friends({ onShowClick, onFriendshipUpdate, refreshTrigge
     const { error } = await supabase
       .from('Friendships')
       .update({ status })
-      .eq('id', friendshipId);
+      .eq('id', friendshipId)
+      .eq('friend_id', currentUserId);
 
     if (error) {
       toast.error('Failed to update request');
@@ -205,7 +213,8 @@ export default function Friends({ onShowClick, onFriendshipUpdate, refreshTrigge
     const { error } = await supabase
       .from('Friendships')
       .delete()
-      .eq('id', friendshipId);
+      .eq('id', friendshipId)
+      .eq('user_id', currentUserId);
 
     if (error) {
       toast.error('Failed to cancel request');

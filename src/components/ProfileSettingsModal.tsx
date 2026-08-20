@@ -4,6 +4,7 @@ import { X, User, Loader2, Camera } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'motion/react';
 import { Profile } from '../types';
+import { MAX_DISPLAY_NAME_LENGTH, sanitizeImageUrl } from '../lib/security';
 
 interface ProfileSettingsModalProps {
   isOpen: boolean;
@@ -55,11 +56,19 @@ export default function ProfileSettingsModal({ isOpen, onClose, onUpdate }: Prof
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No user found');
 
+      const name = displayName.trim().slice(0, MAX_DISPLAY_NAME_LENGTH);
+      if (!name) throw new Error('Display name is required');
+
+      const safeAvatarUrl = avatarUrl.trim() ? sanitizeImageUrl(avatarUrl) : null;
+      if (avatarUrl.trim() && !safeAvatarUrl) {
+        throw new Error('Avatar URL must be a valid http(s) image link');
+      }
+
       const { error } = await supabase
         .from('Profiles')
         .update({
-          display_name: displayName,
-          avatar_url: avatarUrl,
+          display_name: name,
+          avatar_url: safeAvatarUrl,
           allow_comments: allowComments
         })
         .eq('id', user.id);
@@ -131,6 +140,7 @@ export default function ProfileSettingsModal({ isOpen, onClose, onUpdate }: Prof
                       <input
                         type="text"
                         required
+                        maxLength={MAX_DISPLAY_NAME_LENGTH}
                         value={displayName}
                         onChange={(e) => setDisplayName(e.target.value)}
                         className="input-field w-full pl-10"
