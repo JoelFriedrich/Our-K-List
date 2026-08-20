@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { fetchAwardsForUser, attachAwards } from '../lib/queries';
+import { formatStatus } from '../lib/utils';
 import { Profile, Friendship, UserShow, ShowStatus, InviteLink } from '../types';
 import { Search, UserPlus, Check, X, Loader2, Users, ChevronRight, Star, LayoutGrid, List as ListIcon, Copy, Link as LinkIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'react-hot-toast';
 import ShowCard from './ShowCard';
+import Avatar from './Avatar';
 
 interface FriendsProps {
   onShowClick: (userShow: UserShow) => void;
@@ -182,17 +185,8 @@ export default function Friends({ onShowClick, onFriendshipUpdate, refreshTrigge
       toast.error('Failed to fetch friend list');
     } else {
       // Fetch awards separately to avoid invalid join
-      const { data: awardsData } = await supabase
-        .from('Awards')
-        .select('*')
-        .eq('user_id', friend.id);
-
-      const showsWithAwards = userShows?.map(us => ({
-        ...us,
-        awards: awardsData?.filter(a => a.show_id === us.show_id) || []
-      })) || [];
-
-      setAllFriendShows(showsWithAwards as any);
+      const awardsData = await fetchAwardsForUser(friend.id);
+      setAllFriendShows(attachAwards(userShows, awardsData));
     }
     setIsFetchingFriendShows(false);
   };
@@ -283,13 +277,12 @@ export default function Friends({ onShowClick, onFriendshipUpdate, refreshTrigge
               {searchResults.map((profile) => (
                 <div key={profile.id} className="flex items-center justify-between p-3 bg-zinc-900/50 rounded-lg border border-zinc-800">
                   <div className="flex items-center gap-3">
-                    {profile.avatar_url ? (
-                      <img src={profile.avatar_url} alt={profile.display_name} className="w-10 h-10 rounded-full border border-zinc-700" referrerPolicy="no-referrer" />
-                    ) : (
-                      <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center text-xs font-bold border border-zinc-700 uppercase">
-                        {profile.display_name.charAt(0)}
-                      </div>
-                    )}
+                    <Avatar
+                      src={profile.avatar_url}
+                      name={profile.display_name}
+                      className="w-10 h-10 border border-zinc-700"
+                      fallbackClassName="text-xs font-bold uppercase"
+                    />
                     <span className="text-sm font-bold">{profile.display_name}</span>
                   </div>
                   <button
@@ -318,13 +311,13 @@ export default function Friends({ onShowClick, onFriendshipUpdate, refreshTrigge
                     {pendingIncoming.map((f) => (
                       <div key={f.id} className="flex items-center justify-between p-3 bg-zinc-900/50 rounded-lg border border-netflix-red/30">
                         <div className="flex items-center gap-3">
-                          {f.user_profile?.avatar_url ? (
-                            <img src={f.user_profile.avatar_url} alt={f.user_profile.display_name} className="w-8 h-8 rounded-full border border-zinc-700" referrerPolicy="no-referrer" />
-                          ) : (
-                            <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-[10px] font-bold border border-zinc-700 uppercase">
-                              {f.user_profile?.display_name?.charAt(0) || '?'}
-                            </div>
-                          )}
+                          <Avatar
+                            src={f.user_profile?.avatar_url}
+                            name={f.user_profile?.display_name}
+                            fallback={f.user_profile?.display_name?.charAt(0) || '?'}
+                            className="w-8 h-8 border border-zinc-700"
+                            fallbackClassName="text-[10px] font-bold uppercase"
+                          />
                           <span className="text-sm font-bold">{f.user_profile?.display_name}</span>
                         </div>
                         <div className="flex items-center gap-2">
@@ -356,13 +349,13 @@ export default function Friends({ onShowClick, onFriendshipUpdate, refreshTrigge
                     {pendingOutgoing.map((f) => (
                       <div key={f.id} className="flex items-center justify-between p-3 bg-zinc-900/30 rounded-lg border border-zinc-800">
                         <div className="flex items-center gap-3">
-                          {f.friend_profile?.avatar_url ? (
-                            <img src={f.friend_profile.avatar_url} alt={f.friend_profile.display_name} className="w-8 h-8 rounded-full border border-zinc-700 opacity-50" referrerPolicy="no-referrer" />
-                          ) : (
-                            <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-[10px] font-bold border border-zinc-700 uppercase opacity-50">
-                              {f.friend_profile?.display_name?.charAt(0) || '?'}
-                            </div>
-                          )}
+                          <Avatar
+                            src={f.friend_profile?.avatar_url}
+                            name={f.friend_profile?.display_name}
+                            fallback={f.friend_profile?.display_name?.charAt(0) || '?'}
+                            className="w-8 h-8 border border-zinc-700 opacity-50"
+                            fallbackClassName="text-[10px] font-bold uppercase"
+                          />
                           <div className="flex flex-col">
                             <span className="text-sm font-bold text-zinc-400">{f.friend_profile?.display_name}</span>
                             <span className="text-[9px] uppercase tracking-widest text-zinc-600 font-bold">Pending</span>
@@ -411,13 +404,12 @@ export default function Friends({ onShowClick, onFriendshipUpdate, refreshTrigge
                       }`}
                     >
                       <div className="flex items-center gap-4">
-                        {profile.avatar_url ? (
-                          <img src={profile.avatar_url} alt={profile.display_name} className="w-12 h-12 rounded-full border border-zinc-700" referrerPolicy="no-referrer" />
-                        ) : (
-                          <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center text-sm font-bold border border-zinc-700 uppercase">
-                            {profile.display_name.charAt(0)}
-                          </div>
-                        )}
+                        <Avatar
+                          src={profile.avatar_url}
+                          name={profile.display_name}
+                          className="w-12 h-12 border border-zinc-700"
+                          fallbackClassName="text-sm font-bold uppercase"
+                        />
                         <div>
                           <p className={`font-bold ${selectedFriend?.id === profile.id ? 'text-white' : 'text-zinc-200'}`}>
                             {profile.display_name}
@@ -448,17 +440,16 @@ export default function Friends({ onShowClick, onFriendshipUpdate, refreshTrigge
               >
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-6 pb-8 border-b border-zinc-800">
                   <div className="flex items-center gap-6">
-                    {selectedFriend.avatar_url ? (
-                      <img src={selectedFriend.avatar_url} alt={selectedFriend.display_name} className="w-20 h-20 rounded-full border-2 border-netflix-red shadow-2xl" referrerPolicy="no-referrer" />
-                    ) : (
-                      <div className="w-20 h-20 rounded-full bg-zinc-800 flex items-center justify-center text-3xl font-serif italic border-2 border-netflix-red shadow-2xl uppercase">
-                        {selectedFriend.display_name.charAt(0)}
-                      </div>
-                    )}
+                    <Avatar
+                      src={selectedFriend.avatar_url}
+                      name={selectedFriend.display_name}
+                      className="w-20 h-20 border-2 border-netflix-red shadow-2xl"
+                      fallbackClassName="text-3xl font-serif italic uppercase"
+                    />
                     <div>
                       <h2 className="serif-title text-4xl mb-1">{selectedFriend.display_name}'s List</h2>
                       <p className="text-zinc-500 font-medium uppercase tracking-widest text-xs">
-                        {filteredFriendShows.length} {friendStatusFilter.replace(/_/g, ' ')} Shows
+                        {filteredFriendShows.length} {formatStatus(friendStatusFilter)} Shows
                       </p>
                     </div>
                   </div>
@@ -475,7 +466,7 @@ export default function Friends({ onShowClick, onFriendshipUpdate, refreshTrigge
                               : 'text-zinc-500 hover:text-zinc-300'
                           }`}
                         >
-                          {status.replace(/_/g, ' ')}
+                          {formatStatus(status)}
                         </button>
                       ))}
                     </div>
@@ -564,7 +555,7 @@ export default function Friends({ onShowClick, onFriendshipUpdate, refreshTrigge
                                   </div>
                                 )}
                                 <span className={`status-badge status-${userShow.status}`}>
-                                  {userShow.status.replace(/_/g, ' ')}
+                                  {formatStatus(userShow.status)}
                                 </span>
                               </div>
                             </div>

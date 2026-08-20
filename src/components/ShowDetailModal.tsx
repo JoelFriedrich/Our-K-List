@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { fetchProfile, friendshipBetweenFilter } from '../lib/queries';
+import { formatStatus } from '../lib/utils';
 import { UserShow, Actor, ShowStatus, AwardType, Award, Profile } from '../types';
 import { X, Star, Heart, Loader2, Edit2, Check, Trash2, Trophy, Eye, EyeOff, MessageSquare, Lock, ChevronDown } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'react-hot-toast';
 import { insertFeedEvent } from '../lib/feed';
 import Comments from './Comments';
+import ModalShell from './ModalShell';
+import RatingInput from './RatingInput';
 
 interface ShowDetailModalProps {
   userShow: UserShow;
@@ -61,12 +64,7 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
       setCurrentUserId(user?.id || null);
 
       // Fetch owner profile
-      const { data: profileData } = await supabase
-        .from('Profiles')
-        .select('*')
-        .eq('id', userShow.user_id)
-        .single();
-      setOwnerProfile(profileData);
+      setOwnerProfile(await fetchProfile(userShow.user_id));
 
       if (user) {
         // Check if in my list
@@ -84,7 +82,7 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
             .from('Friendships')
             .select('*')
             .eq('status', 'accepted')
-            .or(`and(user_id.eq.${user.id},friend_id.eq.${userShow.user_id}),and(user_id.eq.${userShow.user_id},friend_id.eq.${user.id})`)
+            .or(friendshipBetweenFilter(user.id, userShow.user_id))
             .maybeSingle();
           setIsFriend(!!friendship);
         } else {
@@ -325,21 +323,11 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
   if (!show) return null;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6">
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={onClose}
-        className="absolute inset-0 bg-black/90 backdrop-blur-sm"
-      />
-      
-      <motion.div
-        initial={{ opacity: 0, scale: 0.9, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.9, y: 20 }}
-        className="relative w-full max-w-4xl bg-card-bg rounded-xl overflow-hidden shadow-2xl border border-zinc-800 max-h-[90vh] flex flex-col"
-      >
+    <ModalShell
+      onClose={onClose}
+      wrapperClassName="z-[60] p-4 sm:p-6"
+      panelClassName="max-w-4xl max-h-[90vh] flex flex-col"
+    >
         <button
           onClick={onClose}
           className="absolute top-4 right-4 z-10 p-2 bg-black/50 hover:bg-black/80 rounded-full transition-colors"
@@ -367,7 +355,7 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-2">
                   <span className={`status-badge status-${status}`}>
-                    {status.replace(/_/g, ' ')}
+                    {formatStatus(status)}
                   </span>
                   <span className="text-zinc-400 text-sm font-medium">
                     {show.seasons} Seasons • {show.episodes} Episodes
@@ -496,32 +484,7 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
                   <div>
                     <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 block mb-2">Rating</label>
                     {isEditing ? (
-                      <div className="flex items-center gap-4">
-                        <input
-                          type="range"
-                          min="0"
-                          max="10"
-                          step="0.1"
-                          value={rating}
-                          onChange={(e) => setRating(parseFloat(e.target.value))}
-                          className="flex-1 accent-netflix-red"
-                        />
-                        <div className="flex items-center gap-2 bg-zinc-800 px-3 py-1 rounded border border-zinc-700">
-                          <Star size={14} className="text-netflix-red fill-netflix-red" />
-                          <input
-                            type="number"
-                            min="0"
-                            max="10"
-                            step="0.1"
-                            value={rating}
-                            onChange={(e) => {
-                              const val = parseFloat(e.target.value);
-                              if (!isNaN(val)) setRating(Math.min(10, Math.max(0, val)));
-                            }}
-                            className="bg-transparent border-none text-white w-12 text-sm font-serif italic focus:ring-0 p-0"
-                          />
-                        </div>
-                      </div>
+                      <RatingInput value={rating} onChange={setRating} />
                     ) : (
                       <div className="flex items-center gap-2">
                         <Star className="text-netflix-red fill-netflix-red" size={24} />
@@ -545,7 +508,7 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
                       </select>
                     ) : (
                       <span className={`status-badge status-${status}`}>
-                        {status.replace(/_/g, ' ')}
+                        {formatStatus(status)}
                       </span>
                     )}
                   </div>
@@ -730,7 +693,6 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
             </div>
           </div>
         </div>
-      </motion.div>
-    </div>
+    </ModalShell>
   );
 }

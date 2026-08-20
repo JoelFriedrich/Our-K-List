@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { getCurrentUser, fetchAcceptedFriendIds } from '../lib/queries';
+import { formatStatus } from '../lib/utils';
 import { FeedEvent, UserShow } from '../types';
+import Avatar from './Avatar';
 import { formatDistanceToNow } from 'date-fns';
 import { Loader2, RefreshCw, MessageSquare, Star, Heart, Plus, Activity, Trophy, ListMusic } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -18,25 +21,13 @@ export default function Feed({ onShowClick, refreshTrigger }: FeedProps) {
   const fetchFeed = async () => {
     setIsRefreshing(true);
     try {
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      const currentUser = await getCurrentUser();
       if (!currentUser) return;
 
-      // Step 1 — get all accepted friend IDs (current user can be either side)
-      const { data: friendships } = await supabase
-        .from('Friendships')
-        .select('user_id, friend_id')
-        .eq('status', 'accepted')
-        .or(`user_id.eq.${currentUser.id},friend_id.eq.${currentUser.id}`);
+      const friendIds = await fetchAcceptedFriendIds(currentUser.id);
 
-      // Step 2 — extract friend IDs, excluding current user
-      const friendIds = friendships?.map(f => 
-        f.user_id === currentUser.id ? f.friend_id : f.user_id
-      ) ?? [];
-
-      // Step 3 — include current user in the list to see own events too
+      // Include current user in the list to see own events too
       const allUserIds = [currentUser.id, ...friendIds];
-
-      // Step 4 — fetch feed events for all those users
       const { data, error } = await supabase
         .from('Feed_events')
         .select(`
@@ -108,7 +99,7 @@ export default function Feed({ onShowClick, refreshTrigger }: FeedProps) {
           <span>
             <span className="font-bold text-white">{name}</span> added{' '}
             <span className="font-bold text-white italic">{showTitle}</span> to their{' '}
-            {event.metadata?.status?.replace(/_/g, ' ') || 'list'}
+            {event.metadata?.status ? formatStatus(event.metadata.status) : 'list'}
           </span>
         );
       case 'status_changed':
@@ -224,18 +215,12 @@ export default function Feed({ onShowClick, refreshTrigger }: FeedProps) {
               className="group bg-zinc-900/50 hover:bg-zinc-800/50 border border-zinc-800 p-4 rounded-xl transition-all cursor-pointer flex gap-4 items-start"
             >
               <div className="relative flex-shrink-0">
-                {event.Profiles?.avatar_url ? (
-                  <img
-                    src={event.Profiles.avatar_url}
-                    alt={event.Profiles.display_name}
-                    className="w-10 h-10 rounded-full object-cover border border-zinc-700"
-                    referrerPolicy="no-referrer"
-                  />
-                ) : (
-                  <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center text-xs font-bold border border-zinc-700 uppercase">
-                    {event.Profiles?.display_name?.charAt(0) || 'U'}
-                  </div>
-                )}
+                <Avatar
+                  src={event.Profiles?.avatar_url}
+                  name={event.Profiles?.display_name}
+                  className="w-10 h-10 border border-zinc-700"
+                  fallbackClassName="text-xs font-bold uppercase"
+                />
                 <div className="absolute -bottom-1 -right-1 bg-black rounded-full p-1 border border-zinc-800">
                   {getEventIcon(event.event_type)}
                 </div>

@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { getCurrentUser, fetchProfile as fetchProfileQuery } from '../lib/queries';
 import { Heart, LogOut, Users, Plus, Search, User, Activity, ListMusic } from 'lucide-react';
 import { Profile } from '../types';
 import { toast } from 'react-hot-toast';
+import Avatar from './Avatar';
 
 interface NavbarProps {
   onAddClick: () => void;
@@ -17,14 +19,9 @@ export default function Navbar({ onAddClick, onViewChange, onProfileClick, curre
   const [profile, setProfile] = useState<Profile | null>(null);
 
   const fetchProfile = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
     if (user) {
-      const { data } = await supabase
-        .from('Profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single();
-      
+      const data = await fetchProfileQuery(user.id);
       if (data) setProfile(data);
     }
   };
@@ -98,18 +95,12 @@ export default function Navbar({ onAddClick, onViewChange, onProfileClick, curre
                 onClick={onProfileClick}
                 className="flex items-center gap-3 hover:text-white transition-colors group"
               >
-                {profile?.avatar_url ? (
-                  <img
-                    src={profile.avatar_url}
-                    alt={profile.display_name}
-                    className="w-8 h-8 rounded-full object-cover border border-zinc-700 group-hover:border-netflix-red transition-colors"
-                    referrerPolicy="no-referrer"
-                  />
-                ) : (
-                  <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-xs font-bold border border-zinc-700 uppercase group-hover:border-netflix-red transition-colors">
-                    {profile?.display_name?.charAt(0) || 'U'}
-                  </div>
-                )}
+                <Avatar
+                  src={profile?.avatar_url}
+                  name={profile?.display_name}
+                  className="w-8 h-8 border border-zinc-700 group-hover:border-netflix-red transition-colors"
+                  fallbackClassName="text-xs font-bold uppercase"
+                />
                 <span className="hidden lg:inline text-sm font-medium text-zinc-300 group-hover:text-white">
                   {profile?.display_name || 'User'}
                 </span>

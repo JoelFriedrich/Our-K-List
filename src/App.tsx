@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from './lib/supabase';
+import { friendshipBetweenFilter } from './lib/queries';
+import { makeViewOnlyUserShow } from './lib/utils';
 import { UserShow, Show } from './types';
 import Navbar from './components/Navbar';
 import Auth from './components/Auth';
@@ -87,7 +89,7 @@ export default function App() {
         const { data: existingFriendship } = await supabase
           .from('Friendships')
           .select('*')
-          .or(`and(user_id.eq.${inviteLink.user_id},friend_id.eq.${userId}),and(user_id.eq.${userId},friend_id.eq.${inviteLink.user_id})`)
+          .or(friendshipBetweenFilter(inviteLink.user_id, userId))
           .maybeSingle();
 
         if (!existingFriendship) {
@@ -159,18 +161,11 @@ export default function App() {
         .single();
       
       if (showData) {
-        // Create a mock UserShow for read-only view
-        setSelectedUserShow({
-          id: '',
-          user_id: '',
-          show_id: showData.id,
-          user_rating: 0,
+        // Read-only view for shows not in the user's list
+        setSelectedUserShow(makeViewOnlyUserShow('', showData.id, showData, {
           comments: 'Not in your list',
-          status: 'want_to_watch',
-          added_at: '',
-          is_spoiler: false,
-          show: showData
-        });
+          status: 'want_to_watch'
+        }));
         setSelectedActorName(null);
       }
     }

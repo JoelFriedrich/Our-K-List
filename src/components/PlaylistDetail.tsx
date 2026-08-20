@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { makeViewOnlyUserShow, formatStatus } from '../lib/utils';
 import { Playlist, PlaylistShow, UserShow, Show } from '../types';
 import { 
   ArrowLeft, Edit2, Trash2, Plus, Search, Loader2, 
   Check, Heart, Copy, Share2, Globe, Lock, GripVertical, X, ListMusic
 } from 'lucide-react';
-import { motion, AnimatePresence, Reorder } from 'motion/react';
+import { AnimatePresence, Reorder } from 'motion/react';
 import { toast } from 'react-hot-toast';
 import PlaylistModal from './PlaylistModal';
 import { insertFeedEvent } from '../lib/feed';
+import Avatar from './Avatar';
+import ModalShell from './ModalShell';
 
 interface PlaylistDetailProps {
   playlistId: string;
@@ -310,18 +313,12 @@ export default function PlaylistDetail({ playlistId, onShowClick, onBack, isPubl
 
           <div className="space-y-6">
             <div className="flex items-center gap-4 p-4 bg-zinc-900/50 rounded-xl border border-zinc-800">
-              {playlist.Profiles?.avatar_url ? (
-                <img
-                  src={playlist.Profiles.avatar_url}
-                  alt={playlist.Profiles.display_name}
-                  className="w-10 h-10 rounded-full object-cover"
-                  referrerPolicy="no-referrer"
-                />
-              ) : (
-                <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center text-sm font-bold">
-                  {playlist.Profiles?.display_name?.charAt(0) || 'U'}
-                </div>
-              )}
+              <Avatar
+                src={playlist.Profiles?.avatar_url}
+                name={playlist.Profiles?.display_name}
+                className="w-10 h-10"
+                fallbackClassName="text-sm font-bold"
+              />
               <div>
                 <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold">Curated by</p>
                 <p className="text-white font-serif italic">{playlist.Profiles?.display_name}</p>
@@ -425,17 +422,7 @@ export default function PlaylistDetail({ playlistId, onShowClick, onBack, isPubl
                   </div>
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => onShowClick({
-                        id: '',
-                        user_id: playlist.user_id,
-                        show_id: ps.show_id,
-                        user_rating: 0,
-                        comments: '',
-                        status: 'watched',
-                        added_at: '',
-                        is_spoiler: false,
-                        show: ps.Show_data
-                      })}
+                      onClick={() => onShowClick(makeViewOnlyUserShow(playlist.user_id, ps.show_id, ps.Show_data))}
                       className="p-2 text-zinc-600 hover:text-white transition-colors"
                     >
                       <Search size={18} />
@@ -468,17 +455,7 @@ export default function PlaylistDetail({ playlistId, onShowClick, onBack, isPubl
                     <p className="text-[10px] text-zinc-500 uppercase tracking-widest">{ps.Show_data?.seasons} Seasons</p>
                   </div>
                   <button
-                    onClick={() => onShowClick({
-                      id: '',
-                      user_id: playlist.user_id,
-                      show_id: ps.show_id,
-                      user_rating: 0,
-                      comments: '',
-                      status: 'watched',
-                      added_at: '',
-                      is_spoiler: false,
-                      show: ps.Show_data
-                    })}
+                    onClick={() => onShowClick(makeViewOnlyUserShow(playlist.user_id, ps.show_id, ps.Show_data))}
                     className="p-2 text-zinc-600 hover:text-white transition-colors"
                   >
                     <Search size={18} />
@@ -499,20 +476,11 @@ export default function PlaylistDetail({ playlistId, onShowClick, onBack, isPubl
       {/* Add Show Search Modal */}
       <AnimatePresence>
         {isSearchOpen && (
-          <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsSearchOpen(false)}
-              className="absolute inset-0 bg-black/90 backdrop-blur-sm"
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative w-full max-w-lg bg-card-bg rounded-xl overflow-hidden shadow-2xl border border-zinc-800 flex flex-col max-h-[70vh]"
-            >
+          <ModalShell
+            onClose={() => setIsSearchOpen(false)}
+            wrapperClassName="z-[80]"
+            panelClassName="max-w-lg flex flex-col max-h-[70vh]"
+          >
               <div className="p-6 border-b border-zinc-800 flex items-center justify-between">
                 <h2 className="serif-title text-2xl">Add Show to Playlist</h2>
                 <button onClick={() => setIsSearchOpen(false)} className="text-zinc-500 hover:text-white transition-colors">
@@ -553,7 +521,7 @@ export default function PlaylistDetail({ playlistId, onShowClick, onBack, isPubl
                         />
                         <div className="flex-1 min-w-0">
                           <p className="font-bold text-sm truncate group-hover:text-netflix-red transition-colors">{us.show?.title}</p>
-                          <p className="text-[10px] text-zinc-500 uppercase tracking-widest">{us.status.replace(/_/g, ' ')}</p>
+                          <p className="text-[10px] text-zinc-500 uppercase tracking-widest">{formatStatus(us.status)}</p>
                         </div>
                         {playlistShows.some(ps => ps.show_id === us.show_id) ? (
                           <Check size={18} className="text-green-500" />
@@ -569,8 +537,7 @@ export default function PlaylistDetail({ playlistId, onShowClick, onBack, isPubl
                   )}
                 </div>
               </div>
-            </motion.div>
-          </div>
+          </ModalShell>
         )}
       </AnimatePresence>
 
