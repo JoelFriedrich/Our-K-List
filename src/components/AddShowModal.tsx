@@ -114,7 +114,7 @@ export default function AddShowModal({ isOpen, onClose, onSuccess }: AddShowModa
         actor_name: a.name,
         actor_img_url: a.profile_path ? `https://image.tmdb.org/t/p/w200${a.profile_path}` : 'https://via.placeholder.com/200x300',
         ref_shows: [showDetails.name]
-      })) || [];
+      }));
 
       const actorFailures: unknown[] = [];
       for (const actor of actorUpserts) {

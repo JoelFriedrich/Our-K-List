@@ -5,7 +5,7 @@ import { Search, UserPlus, Check, X, Loader2, Users, ChevronRight, Star, LayoutG
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'react-hot-toast';
 import ShowCard from './ShowCard';
-import { reportError } from '../lib/errors';
+import { logError, reportError } from '../lib/errors';
 
 interface FriendsProps {
   onShowClick: (userShow: UserShow) => void;
@@ -198,7 +198,7 @@ export default function Friends({ onShowClick, onFriendshipUpdate, refreshTrigge
         .eq('user_id', friend.id);
       setAwardsLoadError(!!awardsError);
       if (awardsError) {
-        reportError('Friend awards fetch', awardsError, 'Friend shows loaded, but awards are temporarily unavailable.');
+        logError('Friend awards fetch', awardsError);
       }
 
       const showsWithAwards = userShows?.map(us => ({

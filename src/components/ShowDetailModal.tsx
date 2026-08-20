@@ -74,7 +74,7 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
         .from('Profiles')
         .select('*')
         .eq('id', userShow.user_id)
-        .single();
+        .maybeSingle();
       if (profileError) markInitError('Show owner profile fetch', profileError);
       setOwnerProfile(profileData);
 
@@ -267,7 +267,7 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
           .select('display_name')
           .eq('id', userShow.user_id)
           .single();
-        if (profileError) throw profileError;
+        if (profileError) logError('Show friend profile fetch', profileError);
 
         const feedResult = await insertFeedEvent('liked_comment', userShow.show_id, userShow.id, {
           liked_user_display_name: friendProfile?.display_name || 'Friend' 

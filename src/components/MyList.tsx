@@ -4,7 +4,7 @@ import { UserShow, ShowStatus, Profile } from '../types';
 import ShowCard from './ShowCard';
 import { LayoutGrid, List as ListIcon, Loader2, Heart, Search, X, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { reportError } from '../lib/errors';
+import { logError, reportError } from '../lib/errors';
 
 interface MyListProps {
   key?: string | number;
@@ -46,8 +46,17 @@ export default function MyList({ onShowClick, refreshTrigger }: MyListProps) {
           .select(`
             *,
             show:Show_data (
-              id, title, poster_url, summary, seasons, episodes, actors,
-              characters, tmdb_id, episode_runtime, release_year
+              id,
+              title,
+              poster_url,
+              summary,
+              seasons,
+              episodes,
+              actors,
+              characters,
+              tmdb_id,
+              episode_runtime,
+              release_year
             )
           `)
           .eq('user_id', user.id)
@@ -62,7 +71,7 @@ export default function MyList({ onShowClick, refreshTrigger }: MyListProps) {
 
         if (awardsError) {
           setAwardsLoadError(true);
-          reportError('My List awards fetch', awardsError, 'Your list loaded, but awards could not be loaded.');
+          logError('My List awards fetch', awardsError);
         }
 
         const showsWithAwards = userShows?.map(us => ({

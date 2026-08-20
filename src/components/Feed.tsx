@@ -4,7 +4,7 @@ import { FeedEvent, UserShow } from '../types';
 import { formatDistanceToNow } from 'date-fns';
 import { Loader2, RefreshCw, MessageSquare, Star, Heart, Plus, Activity, Trophy, ListMusic } from 'lucide-react';
 import { motion } from 'motion/react';
-import { reportError } from '../lib/errors';
+import { logError, reportError } from '../lib/errors';
 
 interface FeedProps {
   onShowClick: (userShow: UserShow) => void;
@@ -87,12 +87,12 @@ export default function Feed({ onShowClick, refreshTrigger }: FeedProps) {
       
       if (userShow) {
         // Fetch awards separately
-      const { data: awardsData, error: awardsError } = await supabase
+        const { data: awardsData, error: awardsError } = await supabase
           .from('Awards')
           .select('*')
           .eq('user_id', userShow.user_id)
           .eq('show_id', userShow.show_id);
-        if (awardsError) throw awardsError;
+        if (awardsError) logError('Feed event awards fetch', awardsError);
         onShowClick({
           ...userShow,
           awards: awardsData || []

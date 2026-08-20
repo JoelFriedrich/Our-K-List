@@ -12,12 +12,7 @@ interface ErrorBoundaryState {
 
 export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   state: ErrorBoundaryState = { error: null };
-  private readonly children: React.ReactNode;
-
-  constructor(props: ErrorBoundaryProps) {
-    super(props);
-    this.children = props.children;
-  }
+  declare readonly props: ErrorBoundaryProps;
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { error };
@@ -28,7 +23,7 @@ export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, E
   }
 
   render() {
-    if (!this.state.error) return this.children;
+    if (!this.state.error) return this.props.children;
 
     return (
       <div className="min-h-screen bg-dark-bg text-white flex items-center justify-center p-6">

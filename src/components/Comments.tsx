@@ -8,7 +8,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'react-hot-toast';
 import { insertFeedEvent } from '../lib/feed';
-import { reportError } from '../lib/errors';
+import { logError, reportError } from '../lib/errors';
 
 interface CommentsProps {
   userShowId: string;
@@ -52,7 +52,7 @@ export default function Comments({ userShowId, showId, ownerId }: CommentsProps)
           .eq('user_id', user.id);
         if (likesError) {
           setLikesLoadError(true);
-          reportError('Comment likes fetch', likesError, 'Comments loaded, but likes could not be loaded.');
+          logError('Comment likes fetch', likesError);
         }
         
         const likedIds = new Set(likes?.map(l => l.comment_id));

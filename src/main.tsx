@@ -8,15 +8,27 @@ const root = document.getElementById('root');
 
 const renderFatalError = (error: unknown) => {
   if (!root) return;
-  root.innerHTML = `
-    <div class="min-h-screen bg-dark-bg text-white flex items-center justify-center p-6">
-      <div class="max-w-lg text-center space-y-5">
-        <h1 class="serif-title text-3xl text-netflix-red">Unable to start Our K-List</h1>
-        <p class="text-zinc-300">${getErrorMessage(error)}</p>
-        <p class="text-zinc-500 text-sm">Check your Supabase environment variables and reload the page.</p>
-      </div>
-    </div>
-  `;
+  const container = document.createElement('div');
+  container.className = 'min-h-screen bg-dark-bg text-white flex items-center justify-center p-6';
+
+  const content = document.createElement('div');
+  content.className = 'max-w-lg text-center space-y-5';
+
+  const heading = document.createElement('h1');
+  heading.className = 'serif-title text-3xl text-netflix-red';
+  heading.textContent = 'Unable to start Our K-List';
+
+  const message = document.createElement('p');
+  message.className = 'text-zinc-300';
+  message.textContent = getErrorMessage(error);
+
+  const hint = document.createElement('p');
+  hint.className = 'text-zinc-500 text-sm';
+  hint.textContent = 'Check your Supabase environment variables and reload the page.';
+
+  content.append(heading, message, hint);
+  container.append(content);
+  root.replaceChildren(container);
 };
 
 const bootstrap = async () => {
