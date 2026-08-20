@@ -8,6 +8,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'react-hot-toast';
 import { insertFeedEvent } from '../lib/feed';
+import { MAX_COMMENT_LENGTH } from '../lib/security';
 
 interface CommentsProps {
   userShowId: string;
@@ -72,7 +73,8 @@ export default function Comments({ userShowId, showId, ownerId }: CommentsProps)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newComment.trim() || !currentUserId) return;
+    const body = newComment.trim().slice(0, MAX_COMMENT_LENGTH);
+    if (!body || !currentUserId) return;
 
     setIsSubmitting(true);
     try {
@@ -83,7 +85,7 @@ export default function Comments({ userShowId, showId, ownerId }: CommentsProps)
           user_show_id: userShowId,
           show_id: showId,
           parent_id: replyTo?.id || null,
-          body: newComment,
+          body,
           is_spoiler: isSpoiler
         })
         .select(`
@@ -102,7 +104,7 @@ export default function Comments({ userShowId, showId, ownerId }: CommentsProps)
       // Feed event
       if (!replyTo) {
         insertFeedEvent('commented', showId, userShowId, { 
-          comment: newComment,
+          comment: body,
           is_spoiler: isSpoiler 
         });
       }
@@ -151,12 +153,14 @@ export default function Comments({ userShowId, showId, ownerId }: CommentsProps)
   };
 
   const handleDelete = async (id: string) => {
+    if (!currentUserId) return;
     if (!window.confirm('Delete this comment?')) return;
     try {
       const { error } = await supabase
         .from('Comments')
         .delete()
-        .eq('id', id);
+        .eq('id', id)
+        .eq('user_id', currentUserId);
       if (error) throw error;
       setComments(comments.filter(c => c.id !== id));
       toast.success('Comment deleted');

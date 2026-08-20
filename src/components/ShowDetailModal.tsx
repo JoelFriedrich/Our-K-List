@@ -124,7 +124,7 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
 
   const handleSave = async () => {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user || user.id !== userShow.user_id) return;
 
     setIsSaving(true);
     try {
@@ -136,7 +136,8 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
           status,
           is_spoiler: isSpoiler
         })
-        .eq('id', userShow.id);
+        .eq('id', userShow.id)
+        .eq('user_id', user.id);
 
       if (error) throw error;
 
@@ -298,6 +299,8 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
   };
 
   const handleDelete = async () => {
+    if (!currentUserId || currentUserId !== userShow.user_id) return;
+
     if (!isConfirmingDelete) {
       setIsConfirmingDelete(true);
       return;
@@ -308,7 +311,8 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
       const { error } = await supabase
         .from('User_shows')
         .delete()
-        .eq('id', userShow.id);
+        .eq('id', userShow.id)
+        .eq('user_id', currentUserId);
       
       if (error) throw error;
       toast.success('Removed from list');

@@ -48,7 +48,8 @@ export default function PlaylistModal({ isOpen, onClose, onSuccess, playlist }: 
             description,
             is_public: isPublic
           })
-          .eq('id', playlist.id);
+          .eq('id', playlist.id)
+          .eq('user_id', user.id);
         
         if (error) throw error;
         toast.success('Playlist updated!');
