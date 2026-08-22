@@ -65,7 +65,7 @@ export default function AddShowModal({ isOpen, onClose, onSuccess }: AddShowModa
       const data = await fetchTmdb<{ results?: TMDBShow[] }>(`/search/tv?query=${encodeURIComponent(searchQuery)}`);
       setSearchResults(data.results || []);
     } catch (error) {
-      reportError('TMDB show search', error, 'Failed to search TMDB.');
+      reportError('TMDB show search', error);
     } finally {
       setIsSearching(false);
     }
