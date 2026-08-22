@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { UserShow, ShowStatus, Profile } from '../types';
 import ShowCard from './ShowCard';
-import { LayoutGrid, List as ListIcon, Loader2, Heart, Search, X } from 'lucide-react';
+import { LayoutGrid, List as ListIcon, Loader2, Heart, Search, X, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { logError, reportError } from '../lib/errors';
 
 interface MyListProps {
   key?: string | number;
@@ -19,73 +20,75 @@ export default function MyList({ onShowClick, refreshTrigger }: MyListProps) {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [sortBy, setSortBy] = useState<'rating' | 'awards'>('rating');
   const [searchQuery, setSearchQuery] = useState('');
+  const [loadError, setLoadError] = useState<unknown>(null);
+  const [awardsLoadError, setAwardsLoadError] = useState(false);
+  const [retryTrigger, setRetryTrigger] = useState(0);
 
   useEffect(() => {
     const fetchMyList = async () => {
       setIsLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      setLoadError(null);
+      setAwardsLoadError(false);
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
 
-      // Fetch profile for personalized header
-      const { data: profileData } = await supabase
-        .from('Profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single();
-      
-      if (profileData) setProfile(profileData);
+        const { data: profileData, error: profileError } = await supabase
+          .from('Profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+        if (profileError) reportError('My List profile fetch', profileError);
+        if (profileData) setProfile(profileData);
 
-      const { data: userShows, error } = await supabase
-        .from('User_shows')
-        .select(`
-          *,
-          show:Show_data (
-            id,
-            title,
-            poster_url,
-            summary,
-            seasons,
-            episodes,
-            actors,
-            characters,
-            tmdb_id,
-            episode_runtime,
-            release_year
-          )
-        `)
-        .eq('user_id', user.id)
-        .order('added_at', { ascending: false });
+        const { data: userShows, error } = await supabase
+          .from('User_shows')
+          .select(`
+            *,
+            show:Show_data (
+              id,
+              title,
+              poster_url,
+              summary,
+              seasons,
+              episodes,
+              actors,
+              characters,
+              tmdb_id,
+              episode_runtime,
+              release_year
+            )
+          `)
+          .eq('user_id', user.id)
+          .order('added_at', { ascending: false });
 
-      if (error) {
-        console.error('My List fetch error:', error);
+        if (error) throw error;
+
+        const { data: userAwards, error: awardsError } = await supabase
+          .from('Awards')
+          .select('*')
+          .eq('user_id', user.id);
+
+        if (awardsError) {
+          setAwardsLoadError(true);
+          logError('My List awards fetch', awardsError);
+        }
+
+        const showsWithAwards = userShows?.map(us => ({
+          ...us,
+          awards: userAwards?.filter(a => a.show_id === us.show_id) ?? []
+        })) || [];
+        setUserShows(showsWithAwards);
+      } catch (error) {
+        setLoadError(error);
+        reportError('My List fetch', error);
+      } finally {
         setIsLoading(false);
-        return;
       }
-
-      const { data: userAwards, error: awardsError } = await supabase
-        .from('Awards')
-        .select('*')
-        .eq('user_id', user.id);
-
-      if (awardsError) {
-        console.error('Awards fetch error:', awardsError);
-      }
-
-      if (!userShows || userShows.length === 0) {
-        console.warn('My List returned empty — user_id used:', user.id);
-      }
-      
-      const showsWithAwards = userShows?.map(us => ({
-        ...us,
-        awards: userAwards?.filter(a => a.show_id === us.show_id) ?? []
-      })) || [];
-
-      setUserShows(showsWithAwards);
-      setIsLoading(false);
     };
 
     fetchMyList();
-  }, [refreshTrigger]);
+  }, [refreshTrigger, retryTrigger]);
 
   const filteredShows = userShows
     .filter(us => {
@@ -134,6 +137,11 @@ export default function MyList({ onShowClick, refreshTrigger }: MyListProps) {
           </div>
         </div>
       </div>
+      {awardsLoadError && (
+        <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg px-4 py-3 text-sm text-yellow-200">
+          Awards are temporarily unavailable, but your shows are still displayed.
+        </div>
+      )}
 
       <div className="flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-4">
         <div className="flex bg-zinc-900 p-1 rounded-lg border border-zinc-800 w-full lg:w-auto">
@@ -208,6 +216,17 @@ export default function MyList({ onShowClick, refreshTrigger }: MyListProps) {
         <div className="flex flex-col items-center justify-center py-20 gap-4">
           <Loader2 className="animate-spin text-netflix-red" size={40} />
           <p className="text-zinc-500 text-sm font-medium uppercase tracking-widest">Loading your list...</p>
+        </div>
+      ) : loadError ? (
+        <div className="text-center py-24 bg-zinc-900/30 rounded-xl border border-dashed border-zinc-800">
+          <p className="text-zinc-400 font-medium mb-4">We couldn't load your list.</p>
+          <button
+            onClick={() => setRetryTrigger(value => value + 1)}
+            className="btn-secondary inline-flex items-center gap-2 px-4 py-2"
+          >
+            <RefreshCw size={16} />
+            Try again
+          </button>
         </div>
       ) : filteredShows.length === 0 ? (
         <div className="text-center py-24 bg-zinc-900/30 rounded-xl border border-dashed border-zinc-800">

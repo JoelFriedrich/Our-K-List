@@ -15,6 +15,7 @@ import ActorModal from './components/ActorModal';
 import ProfileSettingsModal from './components/ProfileSettingsModal';
 import { Toaster, toast } from 'react-hot-toast';
 import { Session } from '@supabase/supabase-js';
+import { isNotFoundError, logError, reportError } from './lib/errors';
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -81,44 +82,66 @@ export default function App() {
         .select('user_id, uses')
         .eq('code', code)
         .single();
-      
+
+      if (inviteError) {
+        if (isNotFoundError(inviteError)) {
+          toast.error('This invite link was not found or has expired.');
+        } else {
+          reportError('Invite link lookup', inviteError);
+        }
+        return;
+      }
+
       if (inviteLink && inviteLink.user_id !== userId) {
         // 1. Create accepted friend request
-        const { data: existingFriendship } = await supabase
+        const { data: existingFriendship, error: friendshipLookupError } = await supabase
           .from('Friendships')
           .select('*')
           .or(`and(user_id.eq.${inviteLink.user_id},friend_id.eq.${userId}),and(user_id.eq.${userId},friend_id.eq.${inviteLink.user_id})`)
           .maybeSingle();
 
+        if (friendshipLookupError) throw friendshipLookupError;
+
         if (!existingFriendship) {
-          await supabase.from('Friendships').insert({
+          const { error: friendshipError } = await supabase.from('Friendships').insert({
             user_id: inviteLink.user_id,
             friend_id: userId,
             status: 'accepted'
           });
+          if (friendshipError) throw friendshipError;
           toast.success('Friend added via invite link!');
         }
 
         // 2. Increment uses
-        await supabase.from('Invite_links').update({ uses: inviteLink.uses + 1 }).eq('code', code);
+        const { error: usesError } = await supabase
+          .from('Invite_links')
+          .update({ uses: inviteLink.uses + 1 })
+          .eq('code', code);
+        if (usesError) {
+          reportError('Invite link usage update', usesError, 'Friend added, but the invite usage count could not be updated.');
+        }
       }
-      
-      // 3. Clear invite code and go to feed
+    } catch (err) {
+      reportError('Invite handling', err);
+    } finally {
+      // Always leave the invite route, even if processing failed.
       setInviteCode(null);
       setCurrentView('feed');
       window.history.pushState({}, '', '/');
-    } catch (err) {
-      console.error('Invite handling failed:', err);
     }
   };
 
   const fetchPendingCount = async (userId: string) => {
-    const { count } = await supabase
+    const { count, error } = await supabase
       .from('Friendships')
       .select('*', { count: 'exact', head: true })
       .eq('friend_id', userId)
       .eq('status', 'pending');
-    
+
+    if (error) {
+      logError('Pending friend request count', error);
+      return;
+    }
     setPendingRequestsCount(count || 0);
   };
 
@@ -140,24 +163,38 @@ export default function App() {
     if (!user) return;
 
     // Try to find in user's list
-    const { data: userShowData } = await supabase
+    const { data: userShowData, error: userShowError } = await supabase
       .from('User_shows')
       .select('*, show:Show_data(*)')
       .eq('user_id', user.id)
       .eq('show:Show_data.title', title)
       .single();
 
+    if (userShowError && !isNotFoundError(userShowError)) {
+      reportError('Show lookup in user list', userShowError);
+      return;
+    }
+
     if (userShowData) {
       setSelectedUserShow(userShowData);
       setSelectedActorName(null);
     } else {
       // If not in user's list, maybe just search in global catalog
-      const { data: showData } = await supabase
+      const { data: showData, error: showError } = await supabase
         .from('Show_data')
         .select('*')
         .eq('title', title)
         .single();
-      
+
+      if (showError) {
+        if (isNotFoundError(showError)) {
+          toast.error(`"${title}" isn't available in the catalog.`);
+        } else {
+          reportError('Show catalog lookup', showError);
+        }
+        return;
+      }
+
       if (showData) {
         // Create a mock UserShow for read-only view
         setSelectedUserShow({

@@ -4,6 +4,7 @@ import { FeedEvent, UserShow } from '../types';
 import { formatDistanceToNow } from 'date-fns';
 import { Loader2, RefreshCw, MessageSquare, Star, Heart, Plus, Activity, Trophy, ListMusic } from 'lucide-react';
 import { motion } from 'motion/react';
+import { logError, reportError } from '../lib/errors';
 
 interface FeedProps {
   onShowClick: (userShow: UserShow) => void;
@@ -14,19 +15,22 @@ export default function Feed({ onShowClick, refreshTrigger }: FeedProps) {
   const [events, setEvents] = useState<FeedEvent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState<unknown>(null);
 
   const fetchFeed = async () => {
     setIsRefreshing(true);
+    setLoadError(null);
     try {
       const { data: { user: currentUser } } = await supabase.auth.getUser();
       if (!currentUser) return;
 
       // Step 1 — get all accepted friend IDs (current user can be either side)
-      const { data: friendships } = await supabase
+      const { data: friendships, error: friendshipsError } = await supabase
         .from('Friendships')
         .select('user_id, friend_id')
         .eq('status', 'accepted')
         .or(`user_id.eq.${currentUser.id},friend_id.eq.${currentUser.id}`);
+      if (friendshipsError) throw friendshipsError;
 
       // Step 2 — extract friend IDs, excluding current user
       const friendIds = friendships?.map(f => 
@@ -57,7 +61,8 @@ export default function Feed({ onShowClick, refreshTrigger }: FeedProps) {
       if (error) throw error;
       setEvents(data || []);
     } catch (error) {
-      console.error('Error fetching feed:', error);
+      setLoadError(error);
+      reportError('Feed fetch', error);
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -82,19 +87,19 @@ export default function Feed({ onShowClick, refreshTrigger }: FeedProps) {
       
       if (userShow) {
         // Fetch awards separately
-        const { data: awardsData } = await supabase
+        const { data: awardsData, error: awardsError } = await supabase
           .from('Awards')
           .select('*')
           .eq('user_id', userShow.user_id)
           .eq('show_id', userShow.show_id);
-        
+        if (awardsError) logError('Feed event awards fetch', awardsError);
         onShowClick({
           ...userShow,
           awards: awardsData || []
         });
       }
     } catch (error) {
-      console.error('Error fetching show details:', error);
+      reportError('Feed event details', error);
     }
   };
 
@@ -207,7 +212,16 @@ export default function Feed({ onShowClick, refreshTrigger }: FeedProps) {
         </button>
       </div>
 
-      {events.length === 0 ? (
+      {loadError ? (
+        <div className="text-center py-20 bg-zinc-900/30 rounded-2xl border border-dashed border-zinc-800">
+          <Activity className="mx-auto text-zinc-700 mb-4" size={48} />
+          <p className="text-zinc-400 font-medium mb-4">We couldn't load the activity feed.</p>
+          <button onClick={fetchFeed} className="btn-secondary inline-flex items-center gap-2 px-4 py-2">
+            <RefreshCw size={16} />
+            Try again
+          </button>
+        </div>
+      ) : events.length === 0 ? (
         <div className="text-center py-20 bg-zinc-900/30 rounded-2xl border border-dashed border-zinc-800">
           <Activity className="mx-auto text-zinc-700 mb-4" size={48} />
           <p className="text-zinc-400 font-serif italic text-lg mb-2">Nothing here yet</p>

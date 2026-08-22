@@ -1,4 +1,13 @@
 import { supabase } from './supabase';
+import { logError } from './errors';
+
+interface FeedEventMetadata {
+  [key: string]: unknown;
+}
+
+export type FeedEventResult =
+  | { ok: true }
+  | { ok: false; error: unknown };
 
 /**
  * Helper to insert feed events with a fresh session check.
@@ -9,15 +18,16 @@ export const insertFeedEvent = async (
   eventType: string,
   showId: string,
   userShowId: string,
-  metadata: any
-) => {
+  metadata: FeedEventMetadata
+): Promise<FeedEventResult> => {
   try {
     // Always get fresh session - never rely on cached user for writes
     const { data: { session } } = await supabase.auth.getSession();
     
     if (!session?.user?.id) {
-      console.error('No active session for feed event insert');
-      return;
+      const error = new Error('No active session for feed event insert');
+      logError('Feed event insert', error);
+      return { ok: false, error };
     }
     
     const { error } = await supabase.from('Feed_events').insert({
@@ -29,9 +39,9 @@ export const insertFeedEvent = async (
     });
 
     if (error) throw error;
-    
-    console.log(`Feed event '${eventType}' inserted for user:`, session.user.id);
+    return { ok: true };
   } catch (err) {
-    console.error('Feed event insert failed:', err);
+    logError('Feed event insert', err);
+    return { ok: false, error: err };
   }
 };

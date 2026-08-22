@@ -9,6 +9,7 @@ import { motion, AnimatePresence, Reorder } from 'motion/react';
 import { toast } from 'react-hot-toast';
 import PlaylistModal from './PlaylistModal';
 import { insertFeedEvent } from '../lib/feed';
+import { reportError } from '../lib/errors';
 
 interface PlaylistDetailProps {
   playlistId: string;
@@ -59,16 +60,17 @@ export default function PlaylistDetail({ playlistId, onShowClick, onBack, isPubl
 
       // Check if following
       if (user && user.id !== playlistData.user_id) {
-        const { data: followData } = await supabase
+        const { data: followData, error: followError } = await supabase
           .from('Playlist_follows')
           .select('*')
           .eq('playlist_id', playlistId)
           .eq('user_id', user.id)
           .maybeSingle();
+        if (followError) throw followError;
         setIsFollowing(!!followData);
       }
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      reportError('Playlist details fetch', error);
       if (onBack) onBack();
     } finally {
       setIsLoading(false);
@@ -86,16 +88,16 @@ export default function PlaylistDetail({ playlistId, onShowClick, onBack, isPubl
     }
     setIsSearching(true);
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('User_shows')
         .select('*, Show_data(*)')
         .eq('user_id', currentUserId)
         .ilike('Show_data.title', `%${searchQuery}%`)
         .limit(10);
-      
+      if (error) throw error;
       setUserShows(data?.map(d => ({ ...d, show: d.Show_data })) as any || []);
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      reportError('Playlist show search', error);
     } finally {
       setIsSearching(false);
     }
@@ -127,8 +129,8 @@ export default function PlaylistDetail({ playlistId, onShowClick, onBack, isPubl
       setIsSearchOpen(false);
       setSearchQuery('');
       toast.success('Show added to playlist!');
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      reportError('Add show to playlist', error);
     }
   };
 
@@ -142,12 +144,13 @@ export default function PlaylistDetail({ playlistId, onShowClick, onBack, isPubl
       if (error) throw error;
       setPlaylistShows(playlistShows.filter(s => s.id !== id));
       toast.success('Show removed from playlist');
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      reportError('Remove show from playlist', error);
     }
   };
 
   const handleReorder = async (newOrder: PlaylistShow[]) => {
+    const previousOrder = playlistShows;
     setPlaylistShows(newOrder);
     // Update positions in background
     const updates = newOrder.map((s, index) => ({
@@ -156,10 +159,15 @@ export default function PlaylistDetail({ playlistId, onShowClick, onBack, isPubl
     }));
 
     for (const update of updates) {
-      await supabase
+      const { error } = await supabase
         .from('Playlist_shows')
         .update({ position: update.position })
         .eq('id', update.id);
+      if (error) {
+        setPlaylistShows(previousOrder);
+        reportError('Playlist reorder', error, 'The playlist order could not be saved. Your previous order was restored.');
+        return;
+      }
     }
   };
 
@@ -167,32 +175,37 @@ export default function PlaylistDetail({ playlistId, onShowClick, onBack, isPubl
     if (!currentUserId || !playlist) return;
     try {
       if (isFollowing) {
-        await supabase
+        const { error } = await supabase
           .from('Playlist_follows')
           .delete()
           .eq('playlist_id', playlistId)
           .eq('user_id', currentUserId);
+        if (error) throw error;
         setIsFollowing(false);
         toast.success('Unfollowed playlist');
       } else {
-        await supabase
+        const { error } = await supabase
           .from('Playlist_follows')
           .insert({
             playlist_id: playlistId,
             user_id: currentUserId
           });
+        if (error) throw error;
         
         // Feed event
-        insertFeedEvent('followed_playlist', '', '', { 
+        const feedResult = await insertFeedEvent('followed_playlist', '', '', {
           playlist_name: playlist.name,
           owner: playlist.Profiles?.display_name || 'Friend'
         });
+        if (!feedResult.ok) {
+          toast.error('Playlist followed, but the activity was not posted to the feed.');
+        }
 
         setIsFollowing(true);
         toast.success('Following playlist!');
       }
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      reportError('Playlist follow update', error);
     }
   };
 
@@ -225,12 +238,15 @@ export default function PlaylistDetail({ playlistId, onShowClick, onBack, isPubl
         const { error: sError } = await supabase
           .from('Playlist_shows')
           .insert(showsToInsert);
-        if (sError) throw sError;
+        if (sError) {
+          reportError('Playlist copy shows', sError, 'Playlist created, but its shows could not be copied.');
+          return;
+        }
       }
 
       toast.success('Playlist copied to your list!');
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      reportError('Playlist copy', error);
     } finally {
       setIsCopying(false);
     }
@@ -248,8 +264,8 @@ export default function PlaylistDetail({ playlistId, onShowClick, onBack, isPubl
       if (error) throw error;
       toast.success('Playlist deleted');
       if (onBack) onBack();
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      reportError('Playlist deletion', error);
     } finally {
       setIsDeleting(false);
     }

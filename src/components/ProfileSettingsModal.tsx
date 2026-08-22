@@ -4,6 +4,7 @@ import { X, User, Loader2, Camera } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'motion/react';
 import { Profile } from '../types';
+import { reportError } from '../lib/errors';
 
 interface ProfileSettingsModalProps {
   isOpen: boolean;
@@ -27,24 +28,27 @@ export default function ProfileSettingsModal({ isOpen, onClose, onUpdate }: Prof
 
   const fetchProfile = async () => {
     setIsFetching(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    try {
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError) throw authError;
+      if (!user) return;
 
-    const { data, error } = await supabase
-      .from('Profiles')
-      .select('*')
-      .eq('id', user.id)
-      .single();
+      const { data, error } = await supabase
+        .from('Profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+      if (error) throw error;
 
-    if (error) {
-      console.error('Error fetching profile:', error);
-    } else {
       setProfile(data);
       setDisplayName(data.display_name || '');
       setAvatarUrl(data.avatar_url || '');
       setAllowComments(data.allow_comments ?? true);
+    } catch (error) {
+      reportError('Profile fetch', error, 'We could not load your profile settings.');
+    } finally {
+      setIsFetching(false);
     }
-    setIsFetching(false);
   };
 
   const handleUpdate = async (e: React.FormEvent) => {
@@ -69,8 +73,8 @@ export default function ProfileSettingsModal({ isOpen, onClose, onUpdate }: Prof
       toast.success('Profile updated!');
       onUpdate();
       onClose();
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      reportError('Profile update', error);
     } finally {
       setIsLoading(false);
     }

@@ -6,8 +6,37 @@ import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'react-hot-toast';
 
 import { insertFeedEvent } from '../lib/feed';
+import { logError, reportError } from '../lib/errors';
 
 const TMDB_API_KEY = import.meta.env.VITE_TMDB_API_KEY;
+
+interface TMDBShowDetails extends TMDBShow {
+  credits?: {
+    cast?: TMDBActor[];
+  };
+  number_of_seasons?: number;
+  number_of_episodes?: number;
+}
+
+interface TMDBErrorResponse {
+  status_message?: string;
+}
+
+const fetchTmdb = async <T,>(path: string): Promise<T> => {
+  if (!TMDB_API_KEY) {
+    throw new Error('TMDB API key is missing. Please configure VITE_TMDB_API_KEY.');
+  }
+
+  const response = await fetch(`https://api.themoviedb.org/3${path}${path.includes('?') ? '&' : '?'}api_key=${TMDB_API_KEY}`);
+  const data = await response.json() as T | TMDBErrorResponse;
+  if (!response.ok) {
+    const statusMessage = typeof data === 'object' && data !== null && 'status_message' in data
+      ? data.status_message
+      : undefined;
+    throw new Error(`TMDB request failed (${response.status})${statusMessage ? `: ${statusMessage}` : ''}`);
+  }
+  return data as T;
+};
 
 interface AddShowModalProps {
   isOpen: boolean;
@@ -33,13 +62,10 @@ export default function AddShowModal({ isOpen, onClose, onSuccess }: AddShowModa
 
     setIsSearching(true);
     try {
-      const response = await fetch(
-        `https://api.themoviedb.org/3/search/tv?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(searchQuery)}`
-      );
-      const data = await response.json();
+      const data = await fetchTmdb<{ results?: TMDBShow[] }>(`/search/tv?query=${encodeURIComponent(searchQuery)}`);
       setSearchResults(data.results || []);
     } catch (error) {
-      toast.error('Failed to search TMDB');
+      reportError('TMDB show search', error);
     } finally {
       setIsSearching(false);
     }
@@ -54,13 +80,11 @@ export default function AddShowModal({ isOpen, onClose, onSuccess }: AddShowModa
       if (!user) throw new Error('Not authenticated');
 
       // 1. Fetch full show details from TMDB
-      const showDetailsRes = await fetch(
-        `https://api.themoviedb.org/3/tv/${selectedShow.id}?api_key=${TMDB_API_KEY}&append_to_response=credits`
-      );
-      const showDetails = await showDetailsRes.json();
+      const showDetails = await fetchTmdb<TMDBShowDetails>(`/tv/${selectedShow.id}?append_to_response=credits`);
 
-      const actors = showDetails.credits?.cast?.slice(0, 10).map((a: any) => a.name) || [];
-      const characters = showDetails.credits?.cast?.slice(0, 10).map((a: any) => a.character) || [];
+      const cast = showDetails.credits?.cast?.slice(0, 10) || [];
+      const actors = cast.map(a => a.name);
+      const characters = cast.map(a => a.character);
 
       const firstAirDate = showDetails.first_air_date || selectedShow.first_air_date;
       const releaseYearRaw = firstAirDate ? new Date(firstAirDate).getFullYear() : null;
@@ -86,32 +110,49 @@ export default function AddShowModal({ isOpen, onClose, onSuccess }: AddShowModa
       if (showDataError) throw showDataError;
 
       // 3. Upsert Actor_data
-      const actorUpserts = showDetails.credits?.cast?.slice(0, 10).map((a: any) => ({
+      const actorUpserts = cast.map(a => ({
         actor_name: a.name,
         actor_img_url: a.profile_path ? `https://image.tmdb.org/t/p/w200${a.profile_path}` : 'https://via.placeholder.com/200x300',
         ref_shows: [showDetails.name]
-      })) || [];
+      }));
 
+      const actorFailures: unknown[] = [];
       for (const actor of actorUpserts) {
-        const { data: existingActor } = await supabase
+        const { data: existingActor, error: actorLookupError } = await supabase
           .from('Actor_data')
           .select('*')
           .eq('actor_name', actor.actor_name)
           .maybeSingle();
+        if (actorLookupError) {
+          actorFailures.push(actorLookupError);
+          logError('Actor data lookup', actorLookupError);
+          continue;
+        }
         
         if (existingActor) {
           if (!existingActor.ref_shows.includes(showDetails.name)) {
             const newRefShows = [...existingActor.ref_shows, showDetails.name];
-            await supabase
+            const { error: actorUpdateError } = await supabase
               .from('Actor_data')
               .update({ ref_shows: newRefShows })
               .eq('id', existingActor.id);
+            if (actorUpdateError) {
+              actorFailures.push(actorUpdateError);
+              logError('Actor data update', actorUpdateError);
+            }
           }
         } else {
-          await supabase
+          const { error: actorInsertError } = await supabase
             .from('Actor_data')
             .insert(actor);
+          if (actorInsertError) {
+            actorFailures.push(actorInsertError);
+            logError('Actor data insert', actorInsertError);
+          }
         }
+      }
+      if (actorFailures.length > 0) {
+        toast.error('Show added, but some actor details could not be saved.');
       }
 
       // 4. Create User_shows entry
@@ -131,14 +172,15 @@ export default function AddShowModal({ isOpen, onClose, onSuccess }: AddShowModa
 
       // Part 1 — Write feed events (silent background insert)
       if (userShowData) {
-        insertFeedEvent('added_show', showData.id, userShowData.id, { status });
+        const feedResult = await insertFeedEvent('added_show', showData.id, userShowData.id, { status });
+        if (!feedResult.ok) toast.error('Show added, but the activity was not posted to the feed.');
       }
 
       toast.success('Added to your list!');
       onSuccess();
       handleClose();
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      reportError('Add show', error);
     } finally {
       setIsAdding(false);
     }

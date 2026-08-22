@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { Mail, Lock, Loader2, Chrome, User } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { motion } from 'motion/react';
+import { reportError } from '../lib/errors';
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
@@ -40,18 +41,21 @@ export default function Auth() {
 
         // Manually update profile just in case trigger is slow or missing
         if (authData.user) {
-          await supabase
+          const { error: profileError } = await supabase
             .from('Profiles')
             .upsert({
               id: authData.user.id,
               display_name: displayName,
             });
+          if (profileError) {
+            reportError('Signup profile upsert', profileError, 'Account created, but your display name could not be saved. You can update it in profile settings.');
+          }
         }
 
         toast.success('Check your email for the confirmation link!');
       }
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      reportError('Authentication', error);
     } finally {
       setIsLoading(false);
     }
@@ -66,8 +70,8 @@ export default function Auth() {
         },
       });
       if (error) throw error;
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      reportError('Google authentication', error);
     }
   };
 

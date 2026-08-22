@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { Heart, LogOut, Users, Plus, Search, User, Activity, ListMusic } from 'lucide-react';
 import { Profile } from '../types';
 import { toast } from 'react-hot-toast';
+import { logError, reportError } from '../lib/errors';
 
 interface NavbarProps {
   onAddClick: () => void;
@@ -19,12 +20,15 @@ export default function Navbar({ onAddClick, onViewChange, onProfileClick, curre
   const fetchProfile = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('Profiles')
         .select('*')
         .eq('id', user.id)
         .single();
-      
+      if (error) {
+        logError('Navbar profile fetch', error);
+        return;
+      }
       if (data) setProfile(data);
     }
   };
@@ -35,7 +39,7 @@ export default function Navbar({ onAddClick, onViewChange, onProfileClick, curre
 
   const handleLogout = async () => {
     const { error } = await supabase.auth.signOut();
-    if (error) toast.error(error.message);
+    if (error) reportError('Sign out', error);
   };
 
   return (

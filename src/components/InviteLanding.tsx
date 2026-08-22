@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Loader2 } from 'lucide-react';
 import Auth from './Auth';
+import { isNotFoundError, logError } from '../lib/errors';
 
 interface InviteLandingProps {
   code: string;
@@ -20,8 +21,13 @@ export default function InviteLanding({ code, onAuthSuccess }: InviteLandingProp
         .eq('code', code)
         .single();
       
-      if (data && (data as any).Profiles) {
-        setInviterName((data as any).Profiles.display_name);
+      if (error) {
+        if (!isNotFoundError(error)) {
+          logError('Invite landing lookup', error);
+        }
+      } else if (data) {
+        const inviterProfile = (data as { Profiles?: { display_name?: string } }).Profiles;
+        if (inviterProfile?.display_name) setInviterName(inviterProfile.display_name);
       }
       setIsLoading(false);
     };

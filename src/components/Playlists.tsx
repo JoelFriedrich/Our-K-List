@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Playlist, Profile } from '../types';
-import { Plus, ListMusic, Users, Globe, Loader2, ChevronRight } from 'lucide-react';
+import { Plus, ListMusic, Users, Globe, Loader2, ChevronRight, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'react-hot-toast';
 import PlaylistModal from './PlaylistModal';
+import { reportError } from '../lib/errors';
 
 interface PlaylistsProps {
   onPlaylistClick: (id: string) => void;
@@ -17,62 +18,70 @@ export default function Playlists({ onPlaylistClick, refreshTrigger }: Playlists
   const [userProfile, setUserProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [loadError, setLoadError] = useState<unknown>(null);
 
   const fetchPlaylists = async () => {
     setIsLoading(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    // Fetch user profile for "My Playlists" fallback
-    if (!userProfile) {
-      const { data: profile } = await supabase
-        .from('Profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single();
-      if (profile) setUserProfile(profile);
-    }
-
+    setLoadError(null);
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Fetch user profile for "My Playlists" fallback
+      if (!userProfile) {
+        const { data: profile, error: profileError } = await supabase
+          .from('Profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+        if (profileError) reportError('Playlist profile fetch', profileError);
+        if (profile) setUserProfile(profile);
+      }
+
       if (activeTab === 'my') {
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from('Playlists')
           .select('*')
           .eq('user_id', user.id)
           .order('created_at', { ascending: false });
         
+        if (error) throw error;
         setPlaylists(data || []);
       } else if (activeTab === 'following') {
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from('Playlist_follows')
           .select('Playlists(*, Profiles!Playlists_user_id_fkey(*))')
           .eq('user_id', user.id);
         
-        setPlaylists(data?.map(d => d.Playlists) as any || []);
+        if (error) throw error;
+        setPlaylists(data?.map(d => d.Playlists).filter(Boolean) as unknown as Playlist[] || []);
       } else {
         // Friends' Playlists
         // 1. Get accepted friend IDs
-        const { data: friendships } = await supabase
+        const { data: friendships, error: friendshipsError } = await supabase
           .from('Friendships')
           .select('user_id, friend_id')
           .eq('status', 'accepted')
           .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`);
+        if (friendshipsError) throw friendshipsError;
 
         const friendIds = friendships?.map(f => f.user_id === user.id ? f.friend_id : f.user_id) || [];
 
         if (friendIds.length > 0) {
-          const { data } = await supabase
+          const { data, error } = await supabase
             .from('Playlists')
             .select('*, Profiles!Playlists_user_id_fkey(*)')
             .in('user_id', friendIds)
             .order('created_at', { ascending: false });
+          if (error) throw error;
           setPlaylists(data || []);
         } else {
           setPlaylists([]);
         }
       }
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      setLoadError(error);
+      reportError('Playlists fetch', error);
     } finally {
       setIsLoading(false);
     }
@@ -134,6 +143,15 @@ export default function Playlists({ onPlaylistClick, refreshTrigger }: Playlists
       {isLoading ? (
         <div className="flex justify-center py-20">
           <Loader2 className="animate-spin text-netflix-red" size={40} />
+        </div>
+      ) : loadError ? (
+        <div className="text-center py-20 bg-zinc-900/20 rounded-2xl border border-dashed border-zinc-800">
+          <ListMusic size={48} className="mx-auto text-zinc-700 mb-4" />
+          <h3 className="text-xl font-serif italic text-zinc-500 mb-4">We couldn't load playlists</h3>
+          <button onClick={fetchPlaylists} className="btn-secondary inline-flex items-center gap-2 px-4 py-2">
+            <RefreshCw size={16} />
+            Try again
+          </button>
         </div>
       ) : playlists.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
