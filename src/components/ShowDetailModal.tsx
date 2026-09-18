@@ -476,7 +476,7 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
                     )}
                   </div>
 
-                  {status === 'watched' && (
+                  {(status === 'watched' || rating !== null) && (
                     <div>
                       <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 block mb-2">Rating</label>
                       {isEditing ? (
@@ -489,6 +489,11 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
                         </div>
                       ) : (
                         <p className="text-sm text-zinc-600 italic">Not rated</p>
+                      )}
+                      {status !== 'watched' && rating !== null && (
+                        <p className="text-[10px] uppercase tracking-widest text-zinc-600 mt-2">
+                          Kept from when you watched it
+                        </p>
                       )}
                     </div>
                   )}
