@@ -326,7 +326,10 @@ export default function App() {
           onClose={() => setSelectedUserShow(null)}
           onUpdate={handleRefresh}
           onActorClick={handleActorClick}
-          isFriendView={currentView === 'friends' || (currentView === 'playlist' && selectedUserShow.user_id !== currentUser?.id)}
+          // Whose row this is decides the view, not which tab you came from:
+          // an actor's other show can be your own even when you reached it from
+          // a friend's list.
+          isFriendView={!!currentUser && selectedUserShow.user_id !== currentUser.id}
         />
       )}
 
