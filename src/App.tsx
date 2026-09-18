@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from './lib/supabase';
-import { UserShow, Show } from './types';
+import { UserShow } from './types';
 import Navbar from './components/Navbar';
 import Auth from './components/Auth';
 import MyList from './components/MyList';
@@ -25,6 +25,7 @@ export default function App() {
   const [inviteCode, setInviteCode] = useState<string | null>(null);
   const [playlistId, setPlaylistId] = useState<string | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [addShowPrefillTitle, setAddShowPrefillTitle] = useState<string | null>(null);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [selectedUserShow, setSelectedUserShow] = useState<UserShow | null>(null);
   const [selectedActorName, setSelectedActorName] = useState<string | null>(null);
@@ -162,55 +163,48 @@ export default function App() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    // Try to find in user's list
-    const { data: userShowData, error: userShowError } = await supabase
-      .from('User_shows')
-      .select('*, show:Show_data(*)')
-      .eq('user_id', user.id)
-      .eq('show:Show_data.title', title)
-      .single();
+    // Look the title up in the catalog first, then see whether it is already on
+    // this user's list. Filtering User_shows by an embedded Show_data column is
+    // not something PostgREST supports on its own, so we resolve the show id
+    // ourselves.
+    const { data: showData, error: showError } = await supabase
+      .from('Show_data')
+      .select('*')
+      .eq('title', title)
+      .limit(1)
+      .maybeSingle();
 
-    if (userShowError && !isNotFoundError(userShowError)) {
-      reportError('Show lookup in user list', userShowError);
+    if (showError && !isNotFoundError(showError)) {
+      reportError('Show catalog lookup', showError);
       return;
     }
 
-    if (userShowData) {
-      setSelectedUserShow(userShowData);
-      setSelectedActorName(null);
-    } else {
-      // If not in user's list, maybe just search in global catalog
-      const { data: showData, error: showError } = await supabase
-        .from('Show_data')
+    if (showData) {
+      const { data: userShowData, error: userShowError } = await supabase
+        .from('User_shows')
         .select('*')
-        .eq('title', title)
-        .single();
+        .eq('user_id', user.id)
+        .eq('show_id', showData.id)
+        .limit(1)
+        .maybeSingle();
 
-      if (showError) {
-        if (isNotFoundError(showError)) {
-          toast.error(`"${title}" isn't available in the catalog.`);
-        } else {
-          reportError('Show catalog lookup', showError);
-        }
+      if (userShowError && !isNotFoundError(userShowError)) {
+        reportError('Show lookup in user list', userShowError);
         return;
       }
 
-      if (showData) {
-        // Create a mock UserShow for read-only view
-        setSelectedUserShow({
-          id: '',
-          user_id: '',
-          show_id: showData.id,
-          user_rating: null,
-          comments: 'Not in your list',
-          status: 'want_to_watch',
-          added_at: '',
-          is_spoiler: false,
-          show: showData
-        });
+      if (userShowData) {
+        // Already rated on your list — go straight to it.
         setSelectedActorName(null);
+        setSelectedUserShow({ ...userShowData, show: showData });
+        return;
       }
     }
+
+    // Not on your list yet: open the add flow with this show pre-selected.
+    setSelectedActorName(null);
+    setAddShowPrefillTitle(title);
+    setIsAddModalOpen(true);
   };
 
   if (!authReady) {
@@ -259,7 +253,10 @@ export default function App() {
       }} />
 
       <Navbar 
-        onAddClick={() => setIsAddModalOpen(true)} 
+        onAddClick={() => {
+          setAddShowPrefillTitle(null);
+          setIsAddModalOpen(true);
+        }}
         onViewChange={setCurrentView}
         onProfileClick={() => setIsProfileModalOpen(true)}
         currentView={currentView}
@@ -305,9 +302,14 @@ export default function App() {
       {/* Modals */}
       <AddShowModal
         isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
+        prefillTitle={addShowPrefillTitle}
+        onClose={() => {
+          setIsAddModalOpen(false);
+          setAddShowPrefillTitle(null);
+        }}
         onSuccess={() => {
           setIsAddModalOpen(false);
+          setAddShowPrefillTitle(null);
           handleRefresh();
         }}
       />

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { TMDBShow, TMDBActor, ShowStatus } from '../types';
 import { X, Search, Plus, Loader2, Check, Eye, EyeOff } from 'lucide-react';
@@ -43,9 +43,11 @@ interface AddShowModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  /** Open straight onto this show (e.g. picked from an actor's other shows). */
+  prefillTitle?: string | null;
 }
 
-export default function AddShowModal({ isOpen, onClose, onSuccess }: AddShowModalProps) {
+export default function AddShowModal({ isOpen, onClose, onSuccess, prefillTitle = null }: AddShowModalProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<TMDBShow[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -59,6 +61,36 @@ export default function AddShowModal({ isOpen, onClose, onSuccess }: AddShowModa
   const [comments, setComments] = useState('');
   const [isSpoiler, setIsSpoiler] = useState(false);
   const [status, setStatus] = useState<ShowStatus>('watching');
+
+  // Arriving with a title already in hand (from an actor's other shows): look it
+  // up on TMDB and jump straight to the details form when we can match it.
+  useEffect(() => {
+    if (!isOpen || !prefillTitle) return;
+
+    let cancelled = false;
+    const prefill = async () => {
+      setSearchQuery(prefillTitle);
+      setSearchResults([]);
+      setSelectedShow(null);
+      setIsSearching(true);
+      try {
+        const data = await fetchTmdb<{ results?: TMDBShow[] }>(`/search/tv?query=${encodeURIComponent(prefillTitle)}`);
+        if (cancelled) return;
+        const results = data.results || [];
+        setSearchResults(results);
+        const exact = results.find(r => r.name.trim().toLowerCase() === prefillTitle.trim().toLowerCase());
+        const match = exact || (results.length === 1 ? results[0] : null);
+        if (match) setSelectedShow(match);
+      } catch (error) {
+        if (!cancelled) reportError('TMDB show search', error);
+      } finally {
+        if (!cancelled) setIsSearching(false);
+      }
+    };
+
+    prefill();
+    return () => { cancelled = true; };
+  }, [isOpen, prefillTitle]);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -251,7 +283,12 @@ export default function AddShowModal({ isOpen, onClose, onSuccess }: AddShowModa
         </div>
 
         <div className="p-6 overflow-y-auto flex-1">
-          {!selectedShow ? (
+          {!selectedShow && isSearching && prefillTitle ? (
+            <div className="py-16 flex flex-col items-center gap-4">
+              <Loader2 className="animate-spin text-netflix-red" size={40} />
+              <p className="text-zinc-500 text-xs font-bold uppercase tracking-widest">Looking up "{prefillTitle}"...</p>
+            </div>
+          ) : !selectedShow ? (
             <div className="space-y-6">
               <form onSubmit={handleSearch} className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" size={20} />
