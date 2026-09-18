@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { TMDBShow, TMDBActor, ShowStatus } from '../types';
-import { X, Search, Plus, Loader2, Star, Check, Eye, EyeOff } from 'lucide-react';
+import { X, Search, Plus, Loader2, Check, Eye, EyeOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'react-hot-toast';
 
+import RatingInput from './RatingInput';
 import { insertFeedEvent } from '../lib/feed';
 import { logError, reportError } from '../lib/errors';
 
@@ -52,10 +53,12 @@ export default function AddShowModal({ isOpen, onClose, onSuccess }: AddShowModa
   const [isAdding, setIsAdding] = useState(false);
   
   // Form fields
-  const [rating, setRating] = useState(8);
+  // A new show is something you are starting, and it is unrated until you say
+  // otherwise — no pre-filled opinion.
+  const [rating, setRating] = useState<number | null>(null);
   const [comments, setComments] = useState('');
   const [isSpoiler, setIsSpoiler] = useState(false);
-  const [status, setStatus] = useState<ShowStatus>('watched');
+  const [status, setStatus] = useState<ShowStatus>('watching');
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -162,7 +165,7 @@ export default function AddShowModal({ isOpen, onClose, onSuccess }: AddShowModa
         .insert({
           user_id: user.id,
           show_id: showData.id,
-          user_rating: rating,
+          user_rating: status === 'watched' ? rating : null,
           comments: '',
           status
         })
@@ -215,10 +218,10 @@ export default function AddShowModal({ isOpen, onClose, onSuccess }: AddShowModa
     setSearchQuery('');
     setSearchResults([]);
     setSelectedShow(null);
-    setRating(8);
+    setRating(null);
     setComments('');
     setIsSpoiler(false);
-    setStatus('watched');
+    setStatus('watching');
     onClose();
   };
 
@@ -333,35 +336,10 @@ export default function AddShowModal({ isOpen, onClose, onSuccess }: AddShowModa
                     </div>
                   </div>
 
-                  {status !== 'want_to_watch' && (
+                  {status === 'watched' && (
                     <div className="space-y-2">
                       <label className="text-xs font-bold uppercase tracking-widest text-zinc-500">Rating</label>
-                      <div className="flex items-center gap-4">
-                        <input
-                          type="range"
-                          min="0"
-                          max="10"
-                          step="0.1"
-                          value={rating}
-                          onChange={(e) => setRating(parseFloat(e.target.value))}
-                          className="flex-1 accent-netflix-red"
-                        />
-                        <div className="flex items-center gap-2 bg-zinc-800 px-3 py-1 rounded border border-zinc-700">
-                          <Star size={14} className="text-netflix-red fill-netflix-red" />
-                          <input
-                            type="number"
-                            min="0"
-                            max="10"
-                            step="0.1"
-                            value={rating}
-                            onChange={(e) => {
-                              const val = parseFloat(e.target.value);
-                              if (!isNaN(val)) setRating(Math.min(10, Math.max(0, val)));
-                            }}
-                            className="bg-transparent border-none text-white w-12 text-sm font-serif italic focus:ring-0 p-0"
-                          />
-                        </div>
-                      </div>
+                      <RatingInput value={rating} onChange={setRating} />
                     </div>
                   )}
                 </div>

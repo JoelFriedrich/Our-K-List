@@ -56,8 +56,8 @@ export default function ShowCard({ userShow, onClick }: ShowCardProps) {
           ))}
         </div>
 
-        {/* Rating Badge */}
-        {status !== 'want_to_watch' && (
+        {/* Rating Badge — only a watched show carries a score */}
+        {user_rating !== null && status !== 'want_to_watch' && (
           <div className="absolute top-2 right-2 bg-black/70 backdrop-blur-md px-2 py-1 rounded-md flex items-center gap-1 border border-zinc-800 shadow-xl z-10">
             <Star size={12} className="text-netflix-red fill-netflix-red" />
             <span className="text-xs font-bold text-white">{user_rating}</span>

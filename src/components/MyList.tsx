@@ -288,7 +288,7 @@ export default function MyList({ onShowClick, refreshTrigger }: MyListProps) {
                       ) : null}
                     </div>
                     <div className="flex items-center gap-3">
-                      {statusFilter !== 'want_to_watch' && (
+                      {userShow.user_rating !== null && userShow.status !== 'want_to_watch' && (
                         <div className="flex items-center gap-1 text-netflix-red">
                           <span className="font-bold">{userShow.user_rating}</span>
                           <span className="text-xs text-zinc-500">/ 10</span>

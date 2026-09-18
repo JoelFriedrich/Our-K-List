@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'react-hot-toast';
 import { insertFeedEvent } from '../lib/feed';
 import Comments from './Comments';
+import RatingInput from './RatingInput';
 import { logError, reportError } from '../lib/errors';
 
 interface ShowDetailModalProps {
@@ -148,7 +149,7 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
         });
         if (!feedResult.ok) toast.error('Show updated, but the activity was not posted to the feed.');
       }
-      if (rating !== userShow.user_rating) {
+      if (rating !== null && rating !== userShow.user_rating) {
         const feedResult = await insertFeedEvent('rated', userShow.show_id, userShow.id, { rating });
         if (!feedResult.ok) toast.error('Show updated, but the activity was not posted to the feed.');
       }
@@ -228,7 +229,7 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
           user_id: userId,
           show_id: userShow.show_id,
           status: 'want_to_watch',
-          user_rating: 0,
+          user_rating: null,
           comments: ''
         })
         .select()
@@ -457,44 +458,6 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
 
                 <div className="space-y-6">
                   <div>
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 block mb-2">Rating</label>
-                    {isEditing ? (
-                      <div className="flex items-center gap-4">
-                        <input
-                          type="range"
-                          min="0"
-                          max="10"
-                          step="0.1"
-                          value={rating}
-                          onChange={(e) => setRating(parseFloat(e.target.value))}
-                          className="flex-1 accent-netflix-red"
-                        />
-                        <div className="flex items-center gap-2 bg-zinc-800 px-3 py-1 rounded border border-zinc-700">
-                          <Star size={14} className="text-netflix-red fill-netflix-red" />
-                          <input
-                            type="number"
-                            min="0"
-                            max="10"
-                            step="0.1"
-                            value={rating}
-                            onChange={(e) => {
-                              const val = parseFloat(e.target.value);
-                              if (!isNaN(val)) setRating(Math.min(10, Math.max(0, val)));
-                            }}
-                            className="bg-transparent border-none text-white w-12 text-sm font-serif italic focus:ring-0 p-0"
-                          />
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        <Star className="text-netflix-red fill-netflix-red" size={24} />
-                        <span className="text-3xl font-serif italic">{rating}</span>
-                        <span className="text-zinc-600">/ 10</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div>
                     <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 block mb-2">Status</label>
                     {isEditing ? (
                       <select
@@ -512,6 +475,28 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
                       </span>
                     )}
                   </div>
+
+                  {(status === 'watched' || rating !== null) && (
+                    <div>
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 block mb-2">Rating</label>
+                      {isEditing ? (
+                        <RatingInput value={rating} onChange={setRating} />
+                      ) : rating !== null ? (
+                        <div className="flex items-center gap-2">
+                          <Star className="text-netflix-red fill-netflix-red" size={24} />
+                          <span className="text-3xl font-serif italic">{rating}</span>
+                          <span className="text-zinc-600">/ 10</span>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-zinc-600 italic">Not rated</p>
+                      )}
+                      {status !== 'watched' && rating !== null && (
+                        <p className="text-[10px] uppercase tracking-widest text-zinc-600 mt-2">
+                          Kept from when you watched it
+                        </p>
+                      )}
+                    </div>
+                  )}
 
                   <div>
                     <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 block mb-2">
