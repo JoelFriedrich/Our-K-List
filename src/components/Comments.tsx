@@ -44,27 +44,37 @@ export default function Comments({ userShowId, showId, ownerId }: CommentsProps)
       
       if (error) throw error;
 
-      // Fetch likes for current user
-      if (user) {
+      const commentIds = (data ?? []).map(c => c.id);
+
+      // Pull every like on the comments actually on screen, so we can show real
+      // counts. Previously only the current user's likes were fetched and
+      // likes_count was never populated, so the heart always rendered 0.
+      let likeRows: { comment_id: string; user_id: string }[] = [];
+      if (commentIds.length > 0) {
         const { data: likes, error: likesError } = await supabase
           .from('Comment_likes')
-          .select('comment_id')
-          .eq('user_id', user.id);
+          .select('comment_id, user_id')
+          .in('comment_id', commentIds);
         if (likesError) {
           setLikesLoadError(true);
           logError('Comment likes fetch', likesError);
+        } else {
+          likeRows = likes ?? [];
         }
-        
-        const likedIds = new Set(likes?.map(l => l.comment_id));
-        
-        const processedComments = data?.map(c => ({
-          ...c,
-          is_liked: likedIds.has(c.id)
-        })) || [];
-        setComments(processedComments);
-      } else {
-        setComments(data || []);
       }
+
+      const counts = new Map<string, number>();
+      const likedByMe = new Set<string>();
+      for (const like of likeRows) {
+        counts.set(like.comment_id, (counts.get(like.comment_id) ?? 0) + 1);
+        if (user && like.user_id === user.id) likedByMe.add(like.comment_id);
+      }
+
+      setComments((data ?? []).map(c => ({
+        ...c,
+        likes_count: counts.get(c.id) ?? 0,
+        is_liked: likedByMe.has(c.id)
+      })));
     } catch (error) {
       reportError('Comments fetch', error);
     } finally {
@@ -85,11 +95,13 @@ export default function Comments({ userShowId, showId, ownerId }: CommentsProps)
       const { data, error } = await supabase
         .from('Comments')
         .insert({
+          // NOTE: the Comments table has no show_id column. Sending one made
+          // PostgREST reject every insert with PGRST204, which is why no
+          // comment was ever saved. showId is still used for the feed event.
           user_id: currentUserId,
           user_show_id: userShowId,
-          show_id: showId,
           parent_id: replyTo?.id || null,
-          body: newComment,
+          body: newComment.trim(),
           is_spoiler: isSpoiler
         })
         .select(`
@@ -136,14 +148,17 @@ export default function Comments({ userShowId, showId, ownerId }: CommentsProps)
         
         setComments(comments.map(c => 
           c.id === comment.id 
-            ? { ...c, is_liked: false, likes_count: (c.likes_count || 1) - 1 } 
+            ? { ...c, is_liked: false, likes_count: Math.max((c.likes_count ?? 1) - 1, 0) } 
             : c
         ));
       } else {
         const { error } = await supabase
           .from('Comment_likes')
           .insert({
+            // user_show_id is NOT NULL on Comment_likes; omitting it made every
+            // comment like fail with a not-null violation (23502).
             comment_id: comment.id,
+            user_show_id: userShowId,
             user_id: currentUserId
           });
         if (error) throw error;
@@ -167,7 +182,22 @@ export default function Comments({ userShowId, showId, ownerId }: CommentsProps)
         .delete()
         .eq('id', id);
       if (error) throw error;
-      setComments(comments.filter(c => c.id !== id));
+      // Comments_parent_id_fkey is ON DELETE CASCADE, so replies are gone in the
+      // database; drop the whole subtree locally instead of orphaning it on screen.
+      setComments(prev => {
+        const doomed = new Set([id]);
+        let grew = true;
+        while (grew) {
+          grew = false;
+          for (const c of prev) {
+            if (c.parent_id && doomed.has(c.parent_id) && !doomed.has(c.id)) {
+              doomed.add(c.id);
+              grew = true;
+            }
+          }
+        }
+        return prev.filter(c => !doomed.has(c.id));
+      });
       toast.success('Comment deleted');
     } catch (error) {
       reportError('Comment deletion', error);

@@ -5,7 +5,11 @@ import { toast } from 'react-hot-toast';
 import { motion } from 'motion/react';
 import { reportError } from '../lib/errors';
 
-export default function Auth() {
+interface AuthProps {
+  onAuthSuccess?: () => void;
+}
+
+export default function Auth({ onAuthSuccess }: AuthProps = {}) {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -24,6 +28,7 @@ export default function Auth() {
         });
         if (error) throw error;
         toast.success('Welcome back!');
+        onAuthSuccess?.();
       } else {
         if (!displayName.trim()) {
           throw new Error('Display name is required for signup');

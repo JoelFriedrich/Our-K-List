@@ -16,8 +16,10 @@ export type FeedEventResult =
  */
 export const insertFeedEvent = async (
   eventType: string,
-  showId: string,
-  userShowId: string,
+  // Feed_events.show_id / user_show_id are nullable uuids. Callers for
+  // playlist events have no show, and passing '' raised 22P02 every time.
+  showId: string | null,
+  userShowId: string | null,
   metadata: FeedEventMetadata
 ): Promise<FeedEventResult> => {
   try {
@@ -33,8 +35,8 @@ export const insertFeedEvent = async (
     const { error } = await supabase.from('Feed_events').insert({
       user_id: session.user.id,
       event_type: eventType,
-      show_id: showId,
-      user_show_id: userShowId,
+      show_id: showId || null,
+      user_show_id: userShowId || null,
       metadata
     });
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { UserShow, Actor, ShowStatus, AwardType, Award, Profile } from '../types';
-import { X, Star, Heart, Loader2, Edit2, Check, Trash2, Trophy, Eye, EyeOff, MessageSquare, Lock, ChevronDown } from 'lucide-react';
+import { X, Star, Heart, Loader2, Edit2, Check, Trash2, Trophy, Eye, EyeOff, MessageSquare, Lock, ChevronDown, User } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'react-hot-toast';
 import { insertFeedEvent } from '../lib/feed';
@@ -453,12 +453,18 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
                       onClick={() => onActorClick(actor.actor_name)}
                       className="flex items-center gap-3 bg-zinc-900/50 p-2 rounded-lg border border-zinc-800 cursor-pointer hover:border-zinc-600 transition-colors"
                     >
-                      <img
-                        src={actor.actor_img_url}
-                        alt={actor.actor_name}
-                        className="w-12 h-12 rounded-full object-cover border border-zinc-700"
-                        referrerPolicy="no-referrer"
-                      />
+                      {actor.actor_img_url ? (
+                        <img
+                          src={actor.actor_img_url}
+                          alt={actor.actor_name}
+                          className="w-12 h-12 rounded-full object-cover border border-zinc-700"
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 shrink-0 rounded-full border border-zinc-700 bg-zinc-900 flex items-center justify-center text-zinc-700">
+                          <User size={20} />
+                        </div>
+                      )}
                       <div className="min-w-0">
                         <p className="text-sm font-bold truncate">{actor.actor_name}</p>
                         <p className="text-[10px] text-zinc-500 truncate uppercase tracking-tighter">Actor</p>

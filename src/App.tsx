@@ -165,9 +165,11 @@ export default function App() {
     // Try to find in user's list
     const { data: userShowData, error: userShowError } = await supabase
       .from('User_shows')
-      .select('*, show:Show_data(*)')
+      // The filter path is the embed ALIAS ('show'), not 'show:Show_data', and
+      // !inner is required or non-matching parent rows come back with a null embed.
+      .select('*, show:Show_data!inner(*)')
       .eq('user_id', user.id)
-      .eq('show:Show_data.title', title)
+      .eq('show.title', title)
       .single();
 
     if (userShowError && !isNotFoundError(userShowError)) {

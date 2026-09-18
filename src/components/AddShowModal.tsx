@@ -96,7 +96,9 @@ export default function AddShowModal({ isOpen, onClose, onSuccess }: AddShowModa
         .upsert({
           tmdb_id: showDetails.id,
           title: showDetails.name,
-          poster_url: `https://image.tmdb.org/t/p/w500${showDetails.poster_path}`,
+          poster_url: showDetails.poster_path
+            ? `https://image.tmdb.org/t/p/w500${showDetails.poster_path}`
+            : null,
           summary: showDetails.overview,
           seasons: showDetails.number_of_seasons,
           episodes: showDetails.number_of_episodes,
@@ -112,7 +114,7 @@ export default function AddShowModal({ isOpen, onClose, onSuccess }: AddShowModa
       // 3. Upsert Actor_data
       const actorUpserts = cast.map(a => ({
         actor_name: a.name,
-        actor_img_url: a.profile_path ? `https://image.tmdb.org/t/p/w200${a.profile_path}` : 'https://via.placeholder.com/200x300',
+        actor_img_url: a.profile_path ? `https://image.tmdb.org/t/p/w200${a.profile_path}` : null,
         ref_shows: [showDetails.name]
       }));
 

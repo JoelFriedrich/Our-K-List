@@ -41,7 +41,7 @@ export default function PlaylistDetail({ playlistId, onShowClick, onBack, isPubl
       // Fetch playlist
       const { data: playlistData, error: playlistError } = await supabase
         .from('Playlists')
-        .select('*, Profiles!Playlists_user_id_fkey(*)')
+        .select('*, Profiles!playlists_user_id_profiles_fkey(*)')
         .eq('id', playlistId)
         .single();
       
@@ -90,7 +90,10 @@ export default function PlaylistDetail({ playlistId, onShowClick, onBack, isPubl
     try {
       const { data, error } = await supabase
         .from('User_shows')
-        .select('*, Show_data(*)')
+        // !inner is required: filtering an embedded resource without it nulls
+        // the embed but still returns every parent row, so the search rendered
+        // the user's whole list as blank cards.
+        .select('*, Show_data!inner(*)')
         .eq('user_id', currentUserId)
         .ilike('Show_data.title', `%${searchQuery}%`)
         .limit(10);
@@ -193,7 +196,7 @@ export default function PlaylistDetail({ playlistId, onShowClick, onBack, isPubl
         if (error) throw error;
         
         // Feed event
-        const feedResult = await insertFeedEvent('followed_playlist', '', '', {
+        const feedResult = await insertFeedEvent('followed_playlist', null, null, {
           playlist_name: playlist.name,
           owner: playlist.Profiles?.display_name || 'Friend'
         });

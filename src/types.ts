@@ -102,7 +102,7 @@ export interface Award {
   user_id: string;
   show_id: string;
   award: AwardType;
-  created_at: string;
+  awarded_at: string;
   // Joined data
   Show_data?: Show;
 }

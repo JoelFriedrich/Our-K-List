@@ -68,7 +68,7 @@ export default function PlaylistModal({ isOpen, onClose, onSuccess, playlist }: 
         if (error) throw error;
         
         // Feed event
-        const feedResult = await insertFeedEvent('created_playlist', '', '', { playlist_name: name });
+        const feedResult = await insertFeedEvent('created_playlist', null, null, { playlist_name: name });
         if (!feedResult.ok) toast.error('Playlist created, but the activity was not posted to the feed.');
         
         toast.success('Playlist created!');
