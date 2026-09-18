@@ -25,7 +25,8 @@ export interface UserShow {
   id: string;
   user_id: string;
   show_id: string;
-  user_rating: number;
+  /** null means the show has not been rated yet — distinct from a deliberate 0. */
+  user_rating: number | null;
   comments: string;
   status: ShowStatus;
   added_at: string;

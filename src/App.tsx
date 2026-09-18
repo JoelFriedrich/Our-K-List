@@ -201,7 +201,7 @@ export default function App() {
           id: '',
           user_id: '',
           show_id: showData.id,
-          user_rating: 0,
+          user_rating: null,
           comments: 'Not in your list',
           status: 'want_to_watch',
           added_at: '',

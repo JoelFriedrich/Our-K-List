@@ -186,7 +186,7 @@ export default function Friends({ onShowClick, onFriendshipUpdate, refreshTrigge
         show:Show_data(*)
       `)
       .eq('user_id', friend.id)
-      .order('user_rating', { ascending: false });
+      .order('user_rating', { ascending: false, nullsFirst: false });
 
     if (showsError) {
       reportError('Friend list fetch', showsError, 'Failed to fetch friend list.');
@@ -374,7 +374,7 @@ export default function Friends({ onShowClick, onFriendshipUpdate, refreshTrigge
                                 ) : null}
                               </div>
                               <div className="flex items-center gap-3">
-                                {friendStatusFilter !== 'want_to_watch' && (
+                                {userShow.status === 'watched' && userShow.user_rating !== null && (
                                   <div className="flex items-center gap-1 text-netflix-red">
                                     <span className="font-bold">{userShow.user_rating}</span>
                                     <span className="text-xs text-zinc-500">/ 10</span>
