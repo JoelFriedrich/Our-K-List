@@ -299,9 +299,11 @@ export default function MyList({ onShowClick, refreshTrigger }: MyListProps) {
                       </span>
                     </div>
                   </div>
-                  <div className="text-zinc-500 text-sm italic hidden md:block max-w-md truncate">
-                    "{userShow.comments}"
-                  </div>
+                  {userShow.comments ? (
+                    <div className="text-zinc-500 text-sm italic hidden md:block max-w-md truncate">
+                      "{userShow.comments}"
+                    </div>
+                  ) : null}
                 </div>
               ))}
             </motion.div>

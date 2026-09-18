@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Profile, Friendship, UserShow, ShowStatus, InviteLink } from '../types';
-import { Search, UserPlus, Check, X, Loader2, Users, ChevronRight, Star, LayoutGrid, List as ListIcon, Copy, Link as LinkIcon } from 'lucide-react';
+import { Search, UserPlus, Check, X, Loader2, Users, ChevronRight, ArrowLeft, LayoutGrid, List as ListIcon, Copy, Link as LinkIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'react-hot-toast';
 import ShowCard from './ShowCard';
@@ -238,224 +238,19 @@ export default function Friends({ onShowClick, onFriendshipUpdate, refreshTrigge
   const pendingOutgoing = friendships.filter(f => f.status === 'pending' && f.user_id === currentUserId);
   const acceptedList = friendships.filter(f => f.status === 'accepted');
 
-  return (
-    <div className="space-y-12">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
-        <div className="lg:col-span-1 space-y-10">
-          {/* Invite Section */}
-          <section className="space-y-6">
-            <h2 className="serif-title text-2xl">Invite a Friend</h2>
-            <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6 space-y-4">
-              <p className="text-xs text-zinc-500 uppercase tracking-widest font-bold">Your Personal Invite Link</p>
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" size={16} />
-                  <input
-                    type="text"
-                    readOnly
-                    value={inviteLink ? `${window.location.origin}/invite/${inviteLink.code}` : 'Generating...'}
-                    className="input-field w-full pl-10 text-xs font-mono text-zinc-400 bg-black/50"
-                  />
-                </div>
-                <button
-                  onClick={copyInviteLink}
-                  disabled={!inviteLink}
-                  className="p-3 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg transition-colors group"
-                  title="Copy Link"
-                >
-                  <Copy size={18} className="group-active:scale-90 transition-transform" />
-                </button>
-              </div>
-              <p className="text-[10px] text-zinc-600 uppercase tracking-widest leading-relaxed">
-                Friends who join via this link will be automatically added to your friends list.
-              </p>
-              {inviteLinkError && (
-                <p className="text-xs text-red-300">Invite link unavailable. Please try again later.</p>
-              )}
-            </div>
-          </section>
-
-          {/* Search Section */}
-          <section className="space-y-6">
-            <h2 className="serif-title text-2xl">Find Friends</h2>
-            <form onSubmit={handleSearch} className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="input-field w-full pl-10 text-sm"
-                placeholder="Search by name..."
-              />
-              <button
-                type="submit"
-                disabled={isSearching}
-                className="absolute right-2 top-1/2 -translate-y-1/2 btn-primary py-1 px-3 text-[10px] uppercase tracking-widest"
-              >
-                {isSearching ? <Loader2 className="animate-spin" size={14} /> : 'Search'}
-              </button>
-            </form>
-
-            <div className="space-y-3">
-              {searchResults.map((profile) => (
-                <div key={profile.id} className="flex items-center justify-between p-3 bg-zinc-900/50 rounded-lg border border-zinc-800">
-                  <div className="flex items-center gap-3">
-                    {profile.avatar_url ? (
-                      <img src={profile.avatar_url} alt={profile.display_name} className="w-10 h-10 rounded-full border border-zinc-700" referrerPolicy="no-referrer" />
-                    ) : (
-                      <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center text-xs font-bold border border-zinc-700 uppercase">
-                        {profile.display_name.charAt(0)}
-                      </div>
-                    )}
-                    <span className="text-sm font-bold">{profile.display_name}</span>
-                  </div>
-                  <button
-                    onClick={() => sendFriendRequest(profile.id)}
-                    disabled={isSendingRequest === profile.id}
-                    className="p-2 text-zinc-400 hover:text-netflix-red transition-colors disabled:opacity-50"
-                    title="Send Friend Request"
-                  >
-                    {isSendingRequest === profile.id ? <Loader2 className="animate-spin" size={20} /> : <UserPlus size={20} />}
-                  </button>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          {/* Requests Section */}
-          {(pendingIncoming.length > 0 || pendingOutgoing.length > 0) && (
-            <section className="space-y-8">
-              {pendingIncoming.length > 0 && (
-                <div className="space-y-4">
-                  <h2 className="serif-title text-xl text-netflix-red flex items-center gap-2">
-                    Incoming Requests
-                    <span className="bg-netflix-red text-white text-[10px] px-2 py-0.5 rounded-full">{pendingIncoming.length}</span>
-                  </h2>
-                  <div className="space-y-3">
-                    {pendingIncoming.map((f) => (
-                      <div key={f.id} className="flex items-center justify-between p-3 bg-zinc-900/50 rounded-lg border border-netflix-red/30">
-                        <div className="flex items-center gap-3">
-                          {f.user_profile?.avatar_url ? (
-                            <img src={f.user_profile.avatar_url} alt={f.user_profile.display_name} className="w-8 h-8 rounded-full border border-zinc-700" referrerPolicy="no-referrer" />
-                          ) : (
-                            <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-[10px] font-bold border border-zinc-700 uppercase">
-                              {f.user_profile?.display_name?.charAt(0) || '?'}
-                            </div>
-                          )}
-                          <span className="text-sm font-bold">{f.user_profile?.display_name}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => updateFriendship(f.id, 'accepted')}
-                            className="p-2 text-green-500 hover:bg-green-500/10 rounded-full transition-colors"
-                            title="Accept"
-                          >
-                            <Check size={18} />
-                          </button>
-                          <button
-                            onClick={() => updateFriendship(f.id, 'declined')}
-                            className="p-2 text-red-500 hover:bg-red-500/10 rounded-full transition-colors"
-                            title="Decline"
-                          >
-                            <X size={18} />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {pendingOutgoing.length > 0 && (
-                <div className="space-y-4">
-                  <h2 className="serif-title text-xl text-zinc-400">Outgoing Requests</h2>
-                  <div className="space-y-3">
-                    {pendingOutgoing.map((f) => (
-                      <div key={f.id} className="flex items-center justify-between p-3 bg-zinc-900/30 rounded-lg border border-zinc-800">
-                        <div className="flex items-center gap-3">
-                          {f.friend_profile?.avatar_url ? (
-                            <img src={f.friend_profile.avatar_url} alt={f.friend_profile.display_name} className="w-8 h-8 rounded-full border border-zinc-700 opacity-50" referrerPolicy="no-referrer" />
-                          ) : (
-                            <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-[10px] font-bold border border-zinc-700 uppercase opacity-50">
-                              {f.friend_profile?.display_name?.charAt(0) || '?'}
-                            </div>
-                          )}
-                          <div className="flex flex-col">
-                            <span className="text-sm font-bold text-zinc-400">{f.friend_profile?.display_name}</span>
-                            <span className="text-[9px] uppercase tracking-widest text-zinc-600 font-bold">Pending</span>
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => cancelRequest(f.id)}
-                          className="p-2 text-zinc-600 hover:text-white transition-colors"
-                          title="Cancel Request"
-                        >
-                          <X size={16} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </section>
-          )}
-
-          {/* Friends List Section */}
-          <section className="space-y-6">
-            <h2 className="serif-title text-2xl">My Friends</h2>
-            {isLoading ? (
-              <div className="flex justify-center py-10">
-                <Loader2 className="animate-spin text-zinc-700" size={32} />
-              </div>
-            ) : acceptedList.length === 0 ? (
-              <div className="text-center py-10 bg-zinc-900/30 rounded-lg border border-dashed border-zinc-800">
-                <Users className="mx-auto text-zinc-700 mb-2" size={32} />
-                <p className="text-zinc-500 text-sm">No friends yet.</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {acceptedList.map((f) => {
-                  const profile = getFriendProfile(f);
-                  if (!profile) return null;
-                  return (
-                    <div
-                      key={f.id}
-                      onClick={() => browseFriendList(profile)}
-                      className={`flex items-center justify-between p-4 rounded-xl border transition-all cursor-pointer group ${
-                        selectedFriend?.id === profile.id 
-                          ? 'bg-netflix-red border-netflix-red shadow-lg' 
-                          : 'bg-zinc-900/50 border-zinc-800 hover:border-zinc-600'
-                      }`}
-                    >
-                      <div className="flex items-center gap-4">
-                        {profile.avatar_url ? (
-                          <img src={profile.avatar_url} alt={profile.display_name} className="w-12 h-12 rounded-full border border-zinc-700" referrerPolicy="no-referrer" />
-                        ) : (
-                          <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center text-sm font-bold border border-zinc-700 uppercase">
-                            {profile.display_name.charAt(0)}
-                          </div>
-                        )}
-                        <div>
-                          <p className={`font-bold ${selectedFriend?.id === profile.id ? 'text-white' : 'text-zinc-200'}`}>
-                            {profile.display_name}
-                          </p>
-                          <p className={`text-[10px] uppercase tracking-widest font-bold ${selectedFriend?.id === profile.id ? 'text-red-200' : 'text-zinc-500'}`}>
-                            Friend
-                          </p>
-                        </div>
-                      </div>
-                      <ChevronRight size={20} className={selectedFriend?.id === profile.id ? 'text-white' : 'text-zinc-700 group-hover:text-zinc-400'} />
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </section>
-        </div>
-
-        <div className="lg:col-span-2">
-          <AnimatePresence mode="wait">
-            {selectedFriend ? (
+  // Selecting a friend opens their own page rather than revealing a panel
+  // further down the screen.
+  if (selectedFriend) {
+    return (
+      <div className="space-y-8">
+        <button
+          onClick={() => setSelectedFriend(null)}
+          className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-zinc-500 hover:text-white transition-colors"
+        >
+          <ArrowLeft size={14} />
+          Back to Friends
+        </button>
+        <AnimatePresence mode="wait">
               <motion.div
                 key={selectedFriend.id}
                 initial={{ opacity: 0, x: 20 }}
@@ -597,17 +392,219 @@ export default function Friends({ onShowClick, onFriendshipUpdate, refreshTrigge
                   </AnimatePresence>
                 ) /* End of friendShows.length check */ }
               </motion.div>
-            ) : (
-              <div className="h-full flex flex-col items-center justify-center py-32 text-center space-y-6 opacity-30">
-                <Users size={80} className="text-zinc-700" />
-                <div className="space-y-2">
-                  <h2 className="serif-title text-3xl">Select a friend</h2>
-                  <p className="text-zinc-500 font-medium uppercase tracking-widest text-xs">To browse their K-Drama collection</p>
+        </AnimatePresence>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-12">
+      <div className="max-w-3xl space-y-10">
+          {/* Invite Section */}
+          <section className="space-y-6">
+            <h2 className="serif-title text-2xl">Invite a Friend</h2>
+            <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6 space-y-4">
+              <p className="text-xs text-zinc-500 uppercase tracking-widest font-bold">Your Personal Invite Link</p>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" size={16} />
+                  <input
+                    type="text"
+                    readOnly
+                    value={inviteLink ? `${window.location.origin}/invite/${inviteLink.code}` : 'Generating...'}
+                    className="input-field w-full pl-10 text-xs font-mono text-zinc-400 bg-black/50"
+                  />
                 </div>
+                <button
+                  onClick={copyInviteLink}
+                  disabled={!inviteLink}
+                  className="p-3 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg transition-colors group"
+                  title="Copy Link"
+                >
+                  <Copy size={18} className="group-active:scale-90 transition-transform" />
+                </button>
+              </div>
+              <p className="text-[10px] text-zinc-600 uppercase tracking-widest leading-relaxed">
+                Friends who join via this link will be automatically added to your friends list.
+              </p>
+              {inviteLinkError && (
+                <p className="text-xs text-red-300">Invite link unavailable. Please try again later.</p>
+              )}
+            </div>
+          </section>
+
+          {/* Search Section */}
+          <section className="space-y-6">
+            <h2 className="serif-title text-2xl">Find Friends</h2>
+            <form onSubmit={handleSearch} className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="input-field w-full pl-10 pr-24 text-sm"
+                placeholder="Search by name..."
+              />
+              <button
+                type="submit"
+                disabled={isSearching}
+                className="absolute right-2 top-1/2 -translate-y-1/2 btn-primary py-1 px-3 text-[10px] uppercase tracking-widest"
+              >
+                {isSearching ? <Loader2 className="animate-spin" size={14} /> : 'Search'}
+              </button>
+            </form>
+
+            <div className="space-y-3">
+              {searchResults.map((profile) => (
+                <div key={profile.id} className="flex items-center justify-between p-3 bg-zinc-900/50 rounded-lg border border-zinc-800">
+                  <div className="flex items-center gap-3">
+                    {profile.avatar_url ? (
+                      <img src={profile.avatar_url} alt={profile.display_name} className="w-10 h-10 rounded-full border border-zinc-700" referrerPolicy="no-referrer" />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center text-xs font-bold border border-zinc-700 uppercase">
+                        {profile.display_name.charAt(0)}
+                      </div>
+                    )}
+                    <span className="text-sm font-bold">{profile.display_name}</span>
+                  </div>
+                  <button
+                    onClick={() => sendFriendRequest(profile.id)}
+                    disabled={isSendingRequest === profile.id}
+                    className="p-2 text-zinc-400 hover:text-netflix-red transition-colors disabled:opacity-50"
+                    title="Send Friend Request"
+                  >
+                    {isSendingRequest === profile.id ? <Loader2 className="animate-spin" size={20} /> : <UserPlus size={20} />}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* Requests Section */}
+          {(pendingIncoming.length > 0 || pendingOutgoing.length > 0) && (
+            <section className="space-y-8">
+              {pendingIncoming.length > 0 && (
+                <div className="space-y-4">
+                  <h2 className="serif-title text-xl text-netflix-red flex items-center gap-2">
+                    Incoming Requests
+                    <span className="bg-netflix-red text-white text-[10px] px-2 py-0.5 rounded-full">{pendingIncoming.length}</span>
+                  </h2>
+                  <div className="space-y-3">
+                    {pendingIncoming.map((f) => (
+                      <div key={f.id} className="flex items-center justify-between p-3 bg-zinc-900/50 rounded-lg border border-netflix-red/30">
+                        <div className="flex items-center gap-3">
+                          {f.user_profile?.avatar_url ? (
+                            <img src={f.user_profile.avatar_url} alt={f.user_profile.display_name} className="w-8 h-8 rounded-full border border-zinc-700" referrerPolicy="no-referrer" />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-[10px] font-bold border border-zinc-700 uppercase">
+                              {f.user_profile?.display_name?.charAt(0) || '?'}
+                            </div>
+                          )}
+                          <span className="text-sm font-bold">{f.user_profile?.display_name}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => updateFriendship(f.id, 'accepted')}
+                            className="p-2 text-green-500 hover:bg-green-500/10 rounded-full transition-colors"
+                            title="Accept"
+                          >
+                            <Check size={18} />
+                          </button>
+                          <button
+                            onClick={() => updateFriendship(f.id, 'declined')}
+                            className="p-2 text-red-500 hover:bg-red-500/10 rounded-full transition-colors"
+                            title="Decline"
+                          >
+                            <X size={18} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {pendingOutgoing.length > 0 && (
+                <div className="space-y-4">
+                  <h2 className="serif-title text-xl text-zinc-400">Outgoing Requests</h2>
+                  <div className="space-y-3">
+                    {pendingOutgoing.map((f) => (
+                      <div key={f.id} className="flex items-center justify-between p-3 bg-zinc-900/30 rounded-lg border border-zinc-800">
+                        <div className="flex items-center gap-3">
+                          {f.friend_profile?.avatar_url ? (
+                            <img src={f.friend_profile.avatar_url} alt={f.friend_profile.display_name} className="w-8 h-8 rounded-full border border-zinc-700 opacity-50" referrerPolicy="no-referrer" />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-[10px] font-bold border border-zinc-700 uppercase opacity-50">
+                              {f.friend_profile?.display_name?.charAt(0) || '?'}
+                            </div>
+                          )}
+                          <div className="flex flex-col">
+                            <span className="text-sm font-bold text-zinc-400">{f.friend_profile?.display_name}</span>
+                            <span className="text-[9px] uppercase tracking-widest text-zinc-600 font-bold">Pending</span>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => cancelRequest(f.id)}
+                          className="p-2 text-zinc-600 hover:text-white transition-colors"
+                          title="Cancel Request"
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* Friends List Section */}
+          <section className="space-y-6">
+            <h2 className="serif-title text-2xl">My Friends</h2>
+            {isLoading ? (
+              <div className="flex justify-center py-10">
+                <Loader2 className="animate-spin text-zinc-700" size={32} />
+              </div>
+            ) : acceptedList.length === 0 ? (
+              <div className="text-center py-10 bg-zinc-900/30 rounded-lg border border-dashed border-zinc-800">
+                <Users className="mx-auto text-zinc-700 mb-2" size={32} />
+                <p className="text-zinc-500 text-sm">No friends yet.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {acceptedList.map((f) => {
+                  const profile = getFriendProfile(f);
+                  if (!profile) return null;
+                  return (
+                    <div
+                      key={f.id}
+                      onClick={() => browseFriendList(profile)}
+                      className="flex items-center justify-between p-4 rounded-xl border transition-all cursor-pointer group bg-zinc-900/50 border-zinc-800 hover:border-zinc-600 hover:bg-zinc-900"
+                    >
+                      <div className="flex items-center gap-4">
+                        {profile.avatar_url ? (
+                          <img src={profile.avatar_url} alt={profile.display_name} className="w-12 h-12 rounded-full border border-zinc-700" referrerPolicy="no-referrer" />
+                        ) : (
+                          <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center text-sm font-bold border border-zinc-700 uppercase">
+                            {profile.display_name.charAt(0)}
+                          </div>
+                        )}
+                        <div>
+                          <p className="font-bold text-zinc-200 group-hover:text-white transition-colors">
+                            {profile.display_name}
+                          </p>
+                          <p className="text-[10px] uppercase tracking-widest font-bold text-zinc-500">
+                            Friend
+                          </p>
+                        </div>
+                      </div>
+                      <ChevronRight size={20} className="text-zinc-700 group-hover:text-zinc-400" />
+                    </div>
+                  );
+                })}
               </div>
             )}
-          </AnimatePresence>
-        </div>
+          </section>
       </div>
     </div>
   );
