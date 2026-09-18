@@ -50,7 +50,7 @@ export default function Playlists({ onPlaylistClick, refreshTrigger }: Playlists
       } else if (activeTab === 'following') {
         const { data, error } = await supabase
           .from('Playlist_follows')
-          .select('Playlists(*, Profiles!Playlists_user_id_fkey(*))')
+          .select('Playlists(*, Profiles!playlists_user_id_profiles_fkey(*))')
           .eq('user_id', user.id);
         
         if (error) throw error;
@@ -70,7 +70,7 @@ export default function Playlists({ onPlaylistClick, refreshTrigger }: Playlists
         if (friendIds.length > 0) {
           const { data, error } = await supabase
             .from('Playlists')
-            .select('*, Profiles!Playlists_user_id_fkey(*)')
+            .select('*, Profiles!playlists_user_id_profiles_fkey(*)')
             .in('user_id', friendIds)
             .order('created_at', { ascending: false });
           if (error) throw error;

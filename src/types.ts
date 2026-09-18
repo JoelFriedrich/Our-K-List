@@ -62,6 +62,7 @@ export interface CommentLike {
   id: string;
   user_id: string;
   comment_id: string;
+  user_show_id?: string | null;
   created_at: string;
 }
 
@@ -69,14 +70,18 @@ export interface Comment {
   id: string;
   user_id: string;
   user_show_id: string;
+  show_id: string;
   parent_id: string | null;
   body: string;
   is_spoiler: boolean;
+  /** The list owner's opening comment — what used to be the standalone review. */
+  is_review: boolean;
+  likes_count: number;
   created_at: string;
+  updated_at: string;
   // Joined data
   Profiles?: Profile;
   replies_count?: number;
-  likes_count?: number;
   is_liked?: boolean;
 }
 

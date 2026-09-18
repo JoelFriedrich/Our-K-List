@@ -41,7 +41,7 @@ export default function PlaylistDetail({ playlistId, onShowClick, onBack, isPubl
       // Fetch playlist
       const { data: playlistData, error: playlistError } = await supabase
         .from('Playlists')
-        .select('*, Profiles!Playlists_user_id_fkey(*)')
+        .select('*, Profiles!playlists_user_id_profiles_fkey(*)')
         .eq('id', playlistId)
         .single();
       

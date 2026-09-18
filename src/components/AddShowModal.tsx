@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { TMDBShow, TMDBActor, ShowStatus } from '../types';
-import { X, Search, Plus, Loader2, Star, Check } from 'lucide-react';
+import { X, Search, Plus, Loader2, Star, Check, Eye, EyeOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'react-hot-toast';
 
@@ -54,6 +54,7 @@ export default function AddShowModal({ isOpen, onClose, onSuccess }: AddShowModa
   // Form fields
   const [rating, setRating] = useState(8);
   const [comments, setComments] = useState('');
+  const [isSpoiler, setIsSpoiler] = useState(false);
   const [status, setStatus] = useState<ShowStatus>('watched');
 
   const handleSearch = async (e: React.FormEvent) => {
@@ -162,13 +163,37 @@ export default function AddShowModal({ isOpen, onClose, onSuccess }: AddShowModa
           user_id: user.id,
           show_id: showData.id,
           user_rating: rating,
-          comments,
+          comments: '',
           status
         })
         .select()
         .single();
 
       if (userShowError) throw userShowError;
+
+      // 5. The review is the opening comment of the show's discussion.
+      //    User_shows.comments is kept in sync from there by the database.
+      if (userShowData && comments.trim()) {
+        const { error: reviewError } = await supabase
+          .from('Comments')
+          .insert({
+            user_id: user.id,
+            user_show_id: userShowData.id,
+            show_id: showData.id,
+            body: comments.trim(),
+            is_spoiler: isSpoiler
+          });
+        if (reviewError) {
+          logError('Review comment insert', reviewError);
+          toast.error('Show added, but your review could not be saved.');
+        } else {
+          const feedResult = await insertFeedEvent('commented', showData.id, userShowData.id, {
+            comment: comments.trim(),
+            is_spoiler: isSpoiler
+          });
+          if (!feedResult.ok) toast.error('Review saved, but the activity was not posted to the feed.');
+        }
+      }
 
       // Part 1 — Write feed events (silent background insert)
       if (userShowData) {
@@ -192,6 +217,7 @@ export default function AddShowModal({ isOpen, onClose, onSuccess }: AddShowModa
     setSelectedShow(null);
     setRating(8);
     setComments('');
+    setIsSpoiler(false);
     setStatus('watched');
     onClose();
   };
@@ -230,7 +256,7 @@ export default function AddShowModal({ isOpen, onClose, onSuccess }: AddShowModa
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="input-field w-full pl-10"
+                  className="input-field w-full pl-11 pr-24"
                   placeholder="Search K-Drama title..."
                   autoFocus
                 />
@@ -341,13 +367,28 @@ export default function AddShowModal({ isOpen, onClose, onSuccess }: AddShowModa
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs font-bold uppercase tracking-widest text-zinc-500">Comments</label>
+                  <div className="flex items-center justify-between gap-4">
+                    <label className="text-xs font-bold uppercase tracking-widest text-zinc-500">Review</label>
+                    <button
+                      type="button"
+                      onClick={() => setIsSpoiler(!isSpoiler)}
+                      className={`flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest transition-colors ${
+                        isSpoiler ? 'text-netflix-red' : 'text-zinc-500 hover:text-zinc-400'
+                      }`}
+                    >
+                      {isSpoiler ? <EyeOff size={12} /> : <Eye size={12} />}
+                      {isSpoiler ? 'Spoiler On' : 'Mark Spoiler'}
+                    </button>
+                  </div>
                   <textarea
                     value={comments}
                     onChange={(e) => setComments(e.target.value)}
                     className="w-full bg-zinc-800 border-none text-white rounded p-3 text-sm focus:ring-1 focus:ring-netflix-red min-h-[100px] resize-none"
                     placeholder="Your thoughts on this show..."
                   />
+                  <p className="text-[10px] text-zinc-600 uppercase tracking-widest">
+                    Starts the discussion — friends can reply to it.
+                  </p>
                 </div>
 
                 <button

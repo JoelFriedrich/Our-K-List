@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { UserShow, Actor, ShowStatus, AwardType, Award, Profile } from '../types';
-import { X, Star, Heart, Loader2, Edit2, Check, Trash2, Trophy, Eye, EyeOff, MessageSquare, Lock, ChevronDown } from 'lucide-react';
+import { X, Star, Loader2, Edit2, Check, Trash2, Trophy, MessageSquare, Lock, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'react-hot-toast';
 import { insertFeedEvent } from '../lib/feed';
@@ -37,14 +37,9 @@ const AWARD_CONFIG: Record<AwardType, { label: string; icon: string; color: stri
 export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorClick, isFriendView = false }: ShowDetailModalProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [rating, setRating] = useState(userShow.user_rating);
-  const [comments, setComments] = useState(userShow.comments);
   const [status, setStatus] = useState<ShowStatus>(userShow.status);
-  const [isSpoiler, setIsSpoiler] = useState(userShow.is_spoiler || false);
-  const [showSpoiler, setShowSpoiler] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [actors, setActors] = useState<Actor[]>([]);
-  const [likesCount, setLikesCount] = useState(0);
-  const [isLiked, setIsLiked] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [isInMyList, setIsInMyList] = useState(false);
   const [isAddingToList, setIsAddingToList] = useState(false);
@@ -56,6 +51,16 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
   const [ownerProfile, setOwnerProfile] = useState<Profile | null>(null);
   const [isFriend, setIsFriend] = useState(false);
   const [initError, setInitError] = useState(false);
+
+  const isOwner = currentUserId === userShow.user_id;
+
+  const scrollToDiscussion = () => {
+    const section = document.getElementById('show-discussion');
+    section?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (!isFriendView) {
+      window.setTimeout(() => document.getElementById('comment-input')?.focus(), 400);
+    }
+  };
 
   useEffect(() => {
     const init = async () => {
@@ -114,24 +119,6 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
         if (data) setActors(data);
       }
 
-      // Fetch likes
-      const { count, error: likesError } = await supabase
-        .from('Comment_likes')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_show_id', userShow.id);
-      if (likesError) markInitError('Show likes count fetch', likesError);
-      setLikesCount(count || 0);
-
-      if (user) {
-        const { data: likeData, error: likeError } = await supabase
-          .from('Comment_likes')
-          .select('*')
-          .eq('user_show_id', userShow.id)
-          .eq('user_id', user.id)
-          .maybeSingle();
-        if (likeError) markInitError('Show current like fetch', likeError);
-        setIsLiked(!!likeData);
-      }
     };
 
     init();
@@ -147,9 +134,7 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
         .from('User_shows')
         .update({
           user_rating: rating,
-          comments,
-          status,
-          is_spoiler: isSpoiler
+          status
         })
         .eq('id', userShow.id);
 
@@ -165,13 +150,6 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
       }
       if (rating !== userShow.user_rating) {
         const feedResult = await insertFeedEvent('rated', userShow.show_id, userShow.id, { rating });
-        if (!feedResult.ok) toast.error('Show updated, but the activity was not posted to the feed.');
-      }
-      if (comments !== userShow.comments && comments.trim()) {
-        const feedResult = await insertFeedEvent('commented', userShow.show_id, userShow.id, {
-          comment: comments,
-          is_spoiler: isSpoiler 
-        });
         if (!feedResult.ok) toast.error('Show updated, but the activity was not posted to the feed.');
       }
 
@@ -234,51 +212,6 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
       onUpdate();
     } catch (error) {
       reportError('Remove award', error);
-    }
-  };
-
-  const handleToggleLike = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user || userShow.user_id === user.id) return;
-    const userId = user.id;
-
-    try {
-      if (isLiked) {
-        const { error } = await supabase
-          .from('Comment_likes')
-          .delete()
-          .eq('user_show_id', userShow.id)
-          .eq('user_id', userId);
-        if (error) throw error;
-        setLikesCount(prev => prev - 1);
-        setIsLiked(false);
-      } else {
-        const { error } = await supabase
-          .from('Comment_likes')
-          .insert({
-            user_show_id: userShow.id,
-            user_id: userId
-          });
-        if (error) throw error;
-        
-        // Fetch friend's display name for metadata
-        const { data: friendProfile, error: profileError } = await supabase
-          .from('Profiles')
-          .select('display_name')
-          .eq('id', userShow.user_id)
-          .single();
-        if (profileError) logError('Show friend profile fetch', profileError);
-
-        const feedResult = await insertFeedEvent('liked_comment', userShow.show_id, userShow.id, {
-          liked_user_display_name: friendProfile?.display_name || 'Friend' 
-        });
-        if (!feedResult.ok) toast.error('Like saved, but the activity was not posted to the feed.');
-
-        setLikesCount(prev => prev + 1);
-        setIsLiked(true);
-      }
-    } catch (error) {
-      reportError('Show like update', error);
     }
   };
 
@@ -468,13 +401,14 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
                 </div>
               </section>
 
-              <section className="pt-10 border-t border-zinc-800">
-                {ownerProfile?.allow_comments ? (
+              <section id="show-discussion" className="pt-10 border-t border-zinc-800 scroll-mt-6">
+                {ownerProfile?.allow_comments || isOwner ? (
                   isFriend ? (
                     <Comments 
                       userShowId={userShow.id} 
                       showId={userShow.show_id} 
                       ownerId={userShow.user_id} 
+                      onReviewChange={onUpdate}
                     />
                   ) : (
                     <div className="bg-zinc-900/50 rounded-xl p-8 text-center border border-zinc-800">
@@ -580,52 +514,26 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
                   </div>
 
                   <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 block">Comments</label>
-                      {isEditing && (
-                        <button
-                          onClick={() => setIsSpoiler(!isSpoiler)}
-                          className={`flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest transition-colors ${
-                            isSpoiler ? 'text-netflix-red' : 'text-zinc-500 hover:text-zinc-400'
-                          }`}
-                        >
-                          {isSpoiler ? <EyeOff size={12} /> : <Eye size={12} />}
-                          {isSpoiler ? 'Spoiler On' : 'Mark Spoiler'}
-                        </button>
-                      )}
-                    </div>
-                    {isEditing ? (
-                      <textarea
-                        value={comments}
-                        onChange={(e) => setComments(e.target.value)}
-                        className="w-full bg-zinc-800 border-none text-white rounded p-3 text-sm focus:ring-1 focus:ring-netflix-red min-h-[100px] resize-none"
-                        placeholder="What did you think?"
-                      />
-                    ) : (
-                      <div className="relative group">
-                        {isSpoiler && !showSpoiler ? (
-                          <div 
-                            onClick={() => setShowSpoiler(true)}
-                            className="bg-zinc-800/50 backdrop-blur-md rounded-lg p-6 text-center cursor-pointer border border-zinc-700/50 hover:border-netflix-red transition-all"
-                          >
-                            <EyeOff className="mx-auto text-zinc-500 mb-2" size={24} />
-                            <p className="text-xs font-bold uppercase tracking-widest text-zinc-400">Spoiler Content</p>
-                            <p className="text-[10px] text-zinc-600 mt-1">Click to reveal</p>
-                          </div>
-                        ) : (
-                          <div className="relative">
-                            <p className="text-zinc-300 italic text-sm leading-relaxed">
-                              "{comments || 'No comments yet...'}"
-                            </p>
-                            {isSpoiler && (
-                              <span className="absolute -top-2 -right-2 bg-netflix-red text-white text-[8px] font-bold uppercase px-1.5 py-0.5 rounded shadow-lg">
-                                Spoiler
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )}
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 block mb-2">
+                      {isFriendView ? 'Their Review' : 'My Review'}
+                    </label>
+                    <button
+                      type="button"
+                      onClick={scrollToDiscussion}
+                      className="w-full text-left bg-zinc-800/60 hover:bg-zinc-800 border border-zinc-700/60 hover:border-netflix-red rounded-lg p-3 transition-colors group/review"
+                    >
+                      <span className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-zinc-500 group-hover/review:text-netflix-red transition-colors">
+                        <MessageSquare size={12} />
+                        {isFriendView
+                          ? 'Read it in the discussion'
+                          : userShow.comments
+                            ? 'Edit it in the discussion'
+                            : 'Write it in the discussion'}
+                      </span>
+                      <span className="block text-xs text-zinc-500 mt-1.5 leading-relaxed">
+                        Reviews live in the discussion, so replies stay with the review.
+                      </span>
+                    </button>
                   </div>
 
                   {/* Awards Section */}
@@ -704,23 +612,6 @@ export default function ShowDetailModal({ userShow, onClose, onUpdate, onActorCl
                       )}
                     </div>
                   </div>
-
-                  {(comments || likesCount > 0) && (
-                    <div className="pt-4 border-t border-zinc-800 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={handleToggleLike}
-                          disabled={!currentUserId || userShow.user_id === currentUserId}
-                          className={`transition-all ${
-                            isLiked ? 'text-netflix-red' : 'text-zinc-600 hover:text-zinc-400'
-                          } disabled:opacity-30`}
-                        >
-                          <Heart size={20} className={isLiked ? 'fill-netflix-red' : ''} />
-                        </button>
-                        <span className="text-sm font-bold text-zinc-400">{likesCount}</span>
-                      </div>
-                    </div>
-                  )}
 
                   {!isFriendView && (
                     <div className="pt-6 border-t border-zinc-800 mt-6 flex justify-end">

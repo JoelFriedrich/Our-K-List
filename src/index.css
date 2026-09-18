@@ -19,37 +19,41 @@ h1, h2, h3, .serif-title {
   @apply font-serif;
 }
 
-.netflix-card {
-  @apply bg-card-bg rounded-md overflow-hidden transition-transform duration-300 hover:scale-105 hover:z-10 cursor-pointer;
-}
+/* Component classes live in the components layer so that Tailwind utilities
+   (pl-10, pr-12, py-1, ...) applied on the same element still win. */
+@layer components {
+  .netflix-card {
+    @apply bg-card-bg rounded-md overflow-hidden transition-transform duration-300 hover:scale-105 hover:z-10 cursor-pointer;
+  }
 
-.btn-primary {
-  @apply bg-netflix-red text-white font-semibold py-2 px-4 rounded transition-colors hover:bg-red-700 disabled:opacity-50;
-}
+  .btn-primary {
+    @apply bg-netflix-red text-white font-semibold py-2 px-4 rounded transition-colors hover:bg-red-700 disabled:opacity-50;
+  }
 
-.btn-secondary {
-  @apply bg-zinc-800 text-white font-semibold py-2 px-4 rounded transition-colors hover:bg-zinc-700;
-}
+  .btn-secondary {
+    @apply bg-zinc-800 text-white font-semibold py-2 px-4 rounded transition-colors hover:bg-zinc-700;
+  }
 
-.input-field {
-  @apply bg-zinc-800 border-none text-white rounded p-3 focus:ring-2 focus:ring-netflix-red focus:outline-none;
-}
+  .input-field {
+    @apply bg-zinc-800 border-none text-white rounded p-3 focus:ring-2 focus:ring-netflix-red focus:outline-none;
+  }
 
-/* Retro stamp style labels */
-.status-badge {
-  @apply px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider border rounded-sm inline-block;
-}
+  /* Retro stamp style labels */
+  .status-badge {
+    @apply px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider border rounded-sm inline-block;
+  }
 
-.status-watched {
-  @apply border-green-500 text-green-500;
-}
+  .status-watched {
+    @apply border-green-500 text-green-500;
+  }
 
-.status-watching {
-  @apply border-blue-500 text-blue-500;
-}
+  .status-watching {
+    @apply border-blue-500 text-blue-500;
+  }
 
-.status-want_to_watch {
-  @apply border-yellow-500 text-yellow-500;
+  .status-want_to_watch {
+    @apply border-yellow-500 text-yellow-500;
+  }
 }
 
 /* Custom scrollbar */
